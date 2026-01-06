@@ -63,4 +63,29 @@ async def get_transactions(user = Depends(get_current_user)):
 
     # 2. Fetch Transactions for Family
     res = supabase.table("transactions").select("*").eq("family_id", family_id).order("date", desc=True).execute()
-    return res.data
+    transactions_data = res.data or []
+    
+    if not transactions_data:
+        return []
+
+    # 3. Fetch auxiliary data for mapping (Categories, Accounts, Profiles)
+    # We fetch both default categories (family_id is null) and family-specific categories
+    cat_res = supabase.table("categories").select("id, name").or_(f"family_id.eq.{family_id},is_default.eq.true").execute()
+    acc_res = supabase.table("accounts").select("id, name").eq("family_id", family_id).execute()
+    
+    # Fetch profiles that are referenced in these transactions
+    user_ids = list(set([str(t['user_id']) for t in transactions_data if t.get('user_id')]))
+    prof_res = supabase.table("profiles").select("id, full_name").in_("id", user_ids).execute()
+
+    # Create lookup maps
+    category_map = {str(c['id']): c['name'] for c in (cat_res.data or [])}
+    account_map = {str(a['id']): a['name'] for a in (acc_res.data or [])}
+    profile_map = {str(p['id']): p['full_name'] for p in (prof_res.data or [])}
+
+    # 4. Map names to transactions
+    for t in transactions_data:
+        t['category_name'] = category_map.get(str(t.get('category_id')))
+        t['account_name'] = account_map.get(str(t.get('account_id')))
+        t['user_name'] = profile_map.get(str(t.get('user_id')))
+
+    return transactions_data

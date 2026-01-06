@@ -10,7 +10,13 @@ type FamilyData = {
     invite_code: string | null
 }
 
-export default function SettingsForm({ family }: { family: FamilyData }) {
+type Member = {
+    id: string
+    full_name: string | null
+    email: string
+}
+
+export default function SettingsForm({ family, members }: { family: FamilyData, members: Member[] }) {
     const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
     const [confirmName, setConfirmName] = useState('')
     const [isLeaving, setIsLeaving] = useState(false)
@@ -74,6 +80,41 @@ export default function SettingsForm({ family }: { family: FamilyData }) {
                             </dd>
                         </div>
                     </dl>
+                </div>
+            </div>
+
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+                <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">Integrantes del Niddo</h3>
+                        <p className="mt-1 max-w-2xl text-sm text-gray-500">Personas que forman parte de tu familia.</p>
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {members.length} {members.length === 1 ? 'Integrante' : 'Integrantes'}
+                    </span>
+                </div>
+                <div className="border-t border-gray-200">
+                    <ul className="divide-y divide-gray-200">
+                        {members.map((member) => (
+                            <li key={member.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center space-x-4">
+                                    <div className="flex-shrink-0">
+                                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                            {(member.full_name || member.email || '?')[0].toUpperCase()}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 truncate">
+                                            {member.full_name || 'Sin nombre'}
+                                        </p>
+                                        <p className="text-sm text-gray-500 truncate">
+                                            {member.email}
+                                        </p>
+                                    </div>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             </div>
 

@@ -19,3 +19,6 @@ class TransactionResponse(TransactionBase):
     user_id: Optional[UUID]
     family_id: UUID
     created_at: datetime
+    category_name: Optional[str] = None
+    account_name: Optional[str] = None
+    user_name: Optional[str] = None

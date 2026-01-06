@@ -59,6 +59,21 @@ async def leave_family(user = Depends(get_current_user)):
     supabase.table("profiles").update({"family_id": None}).eq("id", user.id).execute()
     return True
 
+@router.get("/members", response_model=List[dict])
+async def get_family_members(user = Depends(get_current_user)):
+    # 1. Get user profile to find family_id
+    profile_res = supabase.table("profiles").select("family_id").eq("id", user.id).execute()
+    if not profile_res.data:
+         raise HTTPException(status_code=404, detail="Profile not found")
+    
+    family_id = profile_res.data[0].get('family_id')
+    if not family_id:
+        raise HTTPException(status_code=400, detail="User is not in a family")
+
+    # 2. Get all profiles with that family_id
+    members_res = supabase.table("profiles").select("id, full_name, email").eq("family_id", family_id).execute()
+    return members_res.data
+
 @router.get("/", response_model=List[FamilyResponse])
 async def get_my_family(user = Depends(get_current_user)):
     # Get user profile to find family_id
