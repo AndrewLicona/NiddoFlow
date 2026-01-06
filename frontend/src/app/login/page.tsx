@@ -1,7 +1,14 @@
 import { login, loginWithGoogle } from './actions'
 import Link from 'next/link'
 
-export default function LoginPage() {
+export default async function LoginPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+    const { next: nextParam } = await searchParams
+    const next = typeof nextParam === 'string' ? nextParam : undefined
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-2xl shadow-xl border border-slate-100">
@@ -14,6 +21,7 @@ export default function LoginPage() {
                 </div>
 
                 <form className="mt-8 space-y-6">
+                    {next && <input type="hidden" name="next" value={next} />}
                     <div className="rounded-md shadow-sm -space-y-px">
                         <div>
                             <label htmlFor="email-address" className="sr-only">Correo Electrónico</label>

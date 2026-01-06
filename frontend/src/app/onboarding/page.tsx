@@ -32,6 +32,15 @@ export default function OnboardingPage() {
                         </button>
                     </div>
                 </form>
+
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-600">
+                        ¿Ya tienes un código?{' '}
+                        <a href="/onboarding/join" className="font-medium text-blue-600 hover:text-blue-500">
+                            Unirse a una familia existente
+                        </a>
+                    </p>
+                </div>
             </div>
         </div>
     )

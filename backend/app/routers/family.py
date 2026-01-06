@@ -3,35 +3,61 @@ from typing import List
 from app.dependencies import get_current_user
 from app.models.family import FamilyCreate, FamilyResponse
 from app.db.supabase import supabase
+from pydantic import BaseModel
+import random
+import string
 
 router = APIRouter(prefix="/families", tags=["families"])
 
+def generate_invite_code():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
 @router.post("/", response_model=FamilyResponse)
 async def create_family(family: FamilyCreate, user = Depends(get_current_user)):
-    # 1. Create Family
-    res = supabase.table("families").insert({"name": family.name}).execute()
+    # 1. Create Family with invite code
+    for _ in range(3):
+        code = generate_invite_code()
+        try:
+             res = supabase.table("families").insert({"name": family.name, "invite_code": code}).execute()
+             if res.data:
+                 break
+        except Exception:
+             continue
+    else:
+         raise HTTPException(status_code=500, detail="Failed to generate unique invite code")
+
     new_family = res.data[0]
-    print(f"DEBUG: Created family {new_family['id']} for user {user.id}")
 
-    # Check if profile exists
-    check_profile = supabase.table("profiles").select("*").eq("id", user.id).execute()
-    print(f"DEBUG: Profile check data: {check_profile.data}")
-    
-    if not check_profile.data:
-        # Profile might disappear if trigger failed or RLS hidden it? 
-        # But we are using Service Role Key (hopefully), so we should see everything.
-        # Let's try to create it manually just in case
-        print("DEBUG: Profile not found, creating one...")
-        supabase.table("profiles").insert({"id": user.id, "email": user.email}).execute()
-
-    # 2. Update User Profile with family_id
+    # 2. Link User to Family (Update Profile)
     update_res = supabase.table("profiles").update({"family_id": new_family['id']}).eq("id", user.id).execute()
-    print(f"DEBUG: Update result: {update_res.data}")
-
+    
     if not update_res.data:
         raise HTTPException(status_code=500, detail="Failed to link family to user")
 
     return new_family
+
+class JoinFamilyRequest(BaseModel):
+    invite_code: str
+
+@router.post("/join", response_model=FamilyResponse)
+async def join_family(request: JoinFamilyRequest, user = Depends(get_current_user)):
+    # 1. Find family by code
+    res = supabase.table("families").select("*").eq("invite_code", request.invite_code).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Invalid invite code")
+    
+    family = res.data[0]
+    
+    # 2. Update User Profile
+    supabase.table("profiles").update({"family_id": family['id']}).eq("id", user.id).execute()
+    
+    return family
+
+@router.post("/leave", response_model=bool)
+async def leave_family(user = Depends(get_current_user)):
+    # 1. Update Profile to set family_id = null
+    supabase.table("profiles").update({"family_id": None}).eq("id", user.id).execute()
+    return True
 
 @router.get("/", response_model=List[FamilyResponse])
 async def get_my_family(user = Depends(get_current_user)):

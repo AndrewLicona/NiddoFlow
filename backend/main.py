@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import family as family_router
 from app.routers import account as account_router
+from app.routers import transaction as transaction_router
+from app.routers import category as category_router
 
 app = FastAPI(title="NiddoFlow API")
 
@@ -21,6 +23,8 @@ app.add_middleware(
 
 app.include_router(family_router.router)
 app.include_router(account_router.router)
+app.include_router(transaction_router.router)
+app.include_router(category_router.router)
 
 @app.get("/")
 def read_root():

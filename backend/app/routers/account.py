@@ -8,7 +8,26 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 @router.post("/", response_model=AccountResponse)
 async def create_account(account: AccountCreate, user = Depends(get_current_user)):
-    res = supabase.table("accounts").insert(account.model_dump()).execute()
+    # 1. Get User Profile to find Family ID
+    profile_res = supabase.table("profiles").select("family_id").eq("id", user.id).execute()
+    if not profile_res.data or not profile_res.data[0].get('family_id'):
+         raise HTTPException(status_code=400, detail="User does not belong to a family")
+    
+    family_id = profile_res.data[0]['family_id']
+
+    # 2. Prepare data
+    data = account.model_dump()
+    data['family_id'] = family_id
+    if account.type == 'personal':
+        data['user_id'] = str(user.id)
+    else:
+        data['user_id'] = None # Joint accounts might not have a single owner, or maybe they do? Let's leave None for now.
+
+    res = supabase.table("accounts").insert(data).execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create account")
+        
     return res.data[0]
 
 @router.get("/", response_model=List[AccountResponse])
@@ -29,5 +48,12 @@ async def get_my_accounts(user = Depends(get_current_user)):
         return res.data
 
     res = supabase.table("accounts").select("*").eq("family_id", family_id).execute()
-    # Filter in python if needed, or refine query
-    return res.data
+    all_accounts = res.data
+
+    # Filter: Show Joint accounts OR Personal accounts belonging to this user
+    filtered_accounts = [
+        acc for acc in all_accounts 
+        if acc['type'] == 'joint' or (acc['type'] == 'personal' and acc['user_id'] == str(user.id))
+    ]
+    
+    return filtered_accounts

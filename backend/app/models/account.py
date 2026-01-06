@@ -12,7 +12,7 @@ class AccountBase(BaseModel):
     balance: float = 0.0
 
 class AccountCreate(AccountBase):
-    family_id: UUID4
+    family_id: Optional[UUID4] = None
     user_id: Optional[UUID4] = None
 
 class AccountResponse(AccountBase):

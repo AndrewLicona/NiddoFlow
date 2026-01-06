@@ -1,6 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { signout } from './login/actions'
+
+
+async function getFamilyCode(supabase: any, familyId: string) {
+    const { data } = await supabase.from('families').select('invite_code').eq('id', familyId).single()
+    return data?.invite_code || 'N/A'
+}
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -37,13 +44,26 @@ export default async function DashboardPage() {
                     <div className="mt-4 p-4 bg-green-50 rounded-md border border-green-100">
                         <p className="text-sm text-green-700">
                             ¡Familia configurada correctamente!
-                            ID de Familia: {profile.family_id}
+                            <br />
+                            <span className="font-bold">Código de Invitación: {profile.family_id ? (await getFamilyCode(supabase, profile.family_id)) : '...'}</span>
                         </p>
                     </div>
                     <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-100">
                         <p className="text-sm text-blue-700">
                             Phase 1 Complete: Authentication & Family Setup working.
                         </p>
+                    </div>
+
+                    <div className="mt-6 flex space-x-4">
+                        <Link href="/transactions" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                            Ver Transacciones
+                        </Link>
+                        <Link href="/accounts" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                            Mis Cuentas
+                        </Link>
+                        <Link href="/settings" className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors">
+                            Configuración
+                        </Link>
                     </div>
                 </div>
 

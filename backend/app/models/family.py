@@ -9,6 +9,7 @@ class FamilyCreate(FamilyBase):
 
 class FamilyResponse(FamilyBase):
     id: UUID4
+    invite_code: Optional[str] = None
     # members: List[UserResponse] = [] # Circular import risk, handle later
 
     class Config:
