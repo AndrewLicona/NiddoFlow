@@ -1,6 +1,26 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers import family as family_router
+from app.routers import account as account_router
 
-app = FastAPI()
+app = FastAPI(title="NiddoFlow API")
+
+# Configure CORS
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(family_router.router)
+app.include_router(account_router.router)
 
 @app.get("/")
 def read_root():
