@@ -4,6 +4,8 @@ from app.routers import family as family_router
 from app.routers import account as account_router
 from app.routers import transaction as transaction_router
 from app.routers import category as category_router
+from app.routers import budget as budget_router
+from app.routers import debt as debt_router
 
 app = FastAPI(title="NiddoFlow API")
 
@@ -25,6 +27,8 @@ app.include_router(family_router.router)
 app.include_router(account_router.router)
 app.include_router(transaction_router.router)
 app.include_router(category_router.router)
+app.include_router(budget_router.router)
+app.include_router(debt_router.router)
 
 @app.get("/")
 def read_root():

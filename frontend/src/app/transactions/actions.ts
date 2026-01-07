@@ -54,3 +54,44 @@ export async function createTransaction(formData: FormData) {
     revalidatePath('/') // Update dashboard balance presumably
     redirect('/transactions')
 }
+export async function deleteTransaction(transactionId: string) {
+    const headers = await getAuthHeader()
+    if (!headers) redirect('/login')
+
+    const res = await fetch(`${API_URL}/transactions/${transactionId}`, {
+        method: 'DELETE',
+        headers
+    })
+
+    if (!res.ok) {
+        console.error('Failed to delete transaction', await res.text())
+        throw new Error('Failed to delete transaction')
+    }
+
+    revalidatePath('/transactions')
+    revalidatePath('/')
+}
+
+export async function updateTransaction(transactionId: string, data: any) {
+    const headers = await getAuthHeader()
+    if (!headers) redirect('/login')
+
+    // Format date if present
+    if (data.date) {
+        data.date = new Date(data.date).toISOString()
+    }
+
+    const res = await fetch(`${API_URL}/transactions/${transactionId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data)
+    })
+
+    if (!res.ok) {
+        console.error('Failed to update transaction', await res.text())
+        throw new Error('Failed to update transaction')
+    }
+
+    revalidatePath('/transactions')
+    revalidatePath('/')
+}

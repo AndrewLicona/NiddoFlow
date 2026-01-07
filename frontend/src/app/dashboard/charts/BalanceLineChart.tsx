@@ -45,17 +45,54 @@ const buildBalanceData = (transactions: Transaction[]) => {
 const BalanceLineChart: React.FC<Props> = ({ transactions }) => {
     const data = React.useMemo(() => buildBalanceData(transactions), [transactions]);
 
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(value);
+    };
+
     return (
-        <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="balance" stroke="#4caf50" strokeWidth={2} dot={false} />
-            </LineChart>
-        </ResponsiveContainer>
+        <div className="h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" opacity={0.05} />
+                    <XAxis
+                        dataKey="date"
+                        fontSize={8}
+                        tick={{ fill: 'currentColor', opacity: 0.4 }}
+                        axisLine={false}
+                        tickLine={false}
+                        className="text-foreground"
+                    />
+                    <YAxis
+                        hide
+                    />
+                    <Tooltip
+                        formatter={(value: number | undefined) => [formatCurrency(value ?? 0), 'Balance']}
+                        contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid rgba(var(--foreground), 0.1)',
+                            backgroundColor: 'var(--card)',
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            color: 'var(--foreground)'
+                        }}
+                        itemStyle={{ color: 'var(--foreground)' }}
+                    />
+                    <Line
+                        type="monotone"
+                        dataKey="balance"
+                        stroke="#6366F1"
+                        strokeWidth={3}
+                        dot={false}
+                        activeDot={{ r: 6, stroke: '#6366F1', strokeWidth: 2, fill: '#fff' }}
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     );
-};
+}
 
 export default BalanceLineChart;

@@ -8,7 +8,7 @@ type ChartData = {
     color?: string
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658']
+const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#0b7763ff', '#8B5CF6', '#06B6D4', '#EC4899', '#f68b5c', '#06b6d4', '#2b00ffff', '#f43f5e']
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -22,7 +22,7 @@ const formatCurrency = (value: number) => {
 export default function DashboardCharts({ data }: { data: ChartData[] }) {
     if (data.length === 0) {
         return (
-            <div className="flex h-64 items-center justify-center text-gray-400">
+            <div className="flex h-64 items-center justify-center text-foreground/30">
                 No hay datos de gastos este mes
             </div>
         )
@@ -41,6 +41,7 @@ export default function DashboardCharts({ data }: { data: ChartData[] }) {
                         fill="#8884d8"
                         paddingAngle={5}
                         dataKey="value"
+                        stroke="none"
                     >
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -48,9 +49,20 @@ export default function DashboardCharts({ data }: { data: ChartData[] }) {
                     </Pie>
                     <Tooltip
                         formatter={(value: number | undefined) => formatCurrency(value ?? 0)}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid rgba(var(--foreground), 0.1)',
+                            backgroundColor: 'var(--card)',
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            color: 'var(--foreground)'
+                        }}
+                        itemStyle={{ color: 'var(--foreground)' }}
                     />
-                    <Legend verticalAlign="bottom" height={36} />
+                    <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value) => <span className="text-foreground/70 text-xs font-medium">{value}</span>}
+                    />
                 </PieChart>
             </ResponsiveContainer>
         </div>

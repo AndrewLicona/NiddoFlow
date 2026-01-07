@@ -2,6 +2,11 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SettingsForm from './SettingsForm'
+import { PageHeader } from '@/components/ui/molecules/PageHeader';
+
+import { signout } from '../login/actions';
+import { Button } from '@/components/ui/atoms/Button';
+import { LogOut } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
@@ -39,27 +44,27 @@ export default async function SettingsPage() {
         getFamilyMembers(session.access_token)
     ])
 
-    // If no family, should we redirect to onboarding?
-    // Probably yes, but let's handle the null case gracefully just in case
     if (!family) {
         redirect('/onboarding')
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-3xl mx-auto">
-                <div className="mb-6 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Configuración</h1>
-                        <p className="mt-1 text-sm text-gray-500">Gestiona tu perfil y tu familia.</p>
-                    </div>
-                    <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium">
-                        &larr; Volver al Dashboard
-                    </Link>
-                </div>
+        <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
+            <PageHeader
+                title="Configuración"
+                description="Gestiona tu perfil, familia y preferencias del sistema."
+                backHref="/"
+                actions={
+                    <form action={signout}>
+                        <Button type="submit" variant="ghost" size="sm" className="text-foreground/40 hover:text-rose-500">
+                            <LogOut size={16} className="mr-2" />
+                            Cerrar Sesión
+                        </Button>
+                    </form>
+                }
+            />
 
-                <SettingsForm family={family} members={members} />
-            </div>
-        </div>
+            <SettingsForm family={family} members={members} />
+        </main>
     )
 }

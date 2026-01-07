@@ -93,4 +93,41 @@ insert into categories (name, type, is_default) values
 ('Vivienda', 'expense', true),
 ('Servicios', 'expense', true),
 ('Entretenimiento', 'expense', true)
-on conflict do nothing; -- Simple way to avoid dupes if re-run, ideally need unique constraint/index
+on conflict do nothing;
+
+-- Budgets
+create table if not exists budgets (
+  id uuid primary key default uuid_generate_v4(),
+  category_id uuid references categories(id) on delete cascade not null,
+  family_id uuid references families(id) on delete cascade not null,
+  amount numeric not null,
+  period text not null check (period in ('weekly', 'monthly')) default 'monthly',
+  month integer, -- Null if weekly
+  week_number integer, -- Null if monthly
+  year integer not null,
+  start_date date,
+  end_date date,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(family_id, category_id, period, month, week_number, year)
+);
+
+-- Debts
+create table if not exists debts (
+  id uuid primary key default uuid_generate_v4(),
+  family_id uuid references families(id) on delete cascade not null,
+  description text not null,
+  total_amount numeric not null,
+  remaining_amount numeric not null,
+  type text not null check (type in ('to_pay', 'to_receive')),
+  status text not null check (status in ('active', 'paid')),
+  category_id uuid references categories(id),
+  due_date timestamp with time zone,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS for news tables
+alter table budgets enable row level security;
+alter table debts enable row level security;
+
+create policy "Allow all for authenticated" on budgets for all using (auth.role() = 'authenticated');
+create policy "Allow all for authenticated" on debts for all using (auth.role() = 'authenticated');

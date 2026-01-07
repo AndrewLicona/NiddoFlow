@@ -1,0 +1,460 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { formatCurrency } from '@/utils/format';
+import { Typography } from '@/components/ui/atoms/Typography';
+import { Button } from '@/components/ui/atoms/Button';
+import { Card } from '@/components/ui/molecules/Card';
+import { InputField } from '@/components/ui/molecules/InputField';
+import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle } from 'lucide-react';
+
+import { payDebt } from './actions';
+
+interface Debt {
+    id: string;
+    description: string;
+    total_amount: number;
+    remaining_amount: number;
+    type: 'to_pay' | 'to_receive';
+    status: 'active' | 'paid';
+    category_id: string | null;
+    due_date: string | null;
+}
+
+interface Account {
+    id: string;
+    name: string;
+    balance: number;
+}
+
+interface Category {
+    id: string;
+    name: string;
+    type: 'income' | 'expense';
+}
+
+interface Props {
+    initialDebts: Debt[];
+    accounts: Account[];
+    categories: Category[];
+    token: string;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+export default function DebtClient({ initialDebts, accounts, categories, token }: Props) {
+    const [debts, setDebts] = useState<Debt[]>(initialDebts);
+    const [isCreating, setIsCreating] = useState(false);
+    const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
+    const [paymentData, setPaymentData] = useState({
+        amount: '',
+        accountId: accounts[0]?.id || '',
+        categoryId: '',
+        description: ''
+    });
+    const [newDebt, setNewDebt] = useState({
+        description: '',
+        total_amount: '',
+        type: 'to_pay' as 'to_pay' | 'to_receive',
+        category_id: '',
+        account_id: '',
+        due_date: ''
+    });
+
+    const stats = useMemo(() => {
+        const toPay = debts
+            .filter(d => d.type === 'to_pay' && d.status === 'active')
+            .reduce((acc, d) => acc + d.remaining_amount, 0);
+
+        const toReceive = debts
+            .filter(d => d.type === 'to_receive' && d.status === 'active')
+            .reduce((acc, d) => acc + d.remaining_amount, 0);
+
+        return { toPay, toReceive };
+    }, [debts]);
+
+    const handleCreateDebt = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const res = await fetch(`${API_URL}/debts/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    ...newDebt,
+                    total_amount: parseFloat(newDebt.total_amount),
+                    remaining_amount: parseFloat(newDebt.total_amount),
+                    category_id: newDebt.category_id || null,
+                    account_id: newDebt.account_id || null,
+                    due_date: newDebt.due_date || null
+                })
+            });
+
+            if (res.ok) {
+                const created = await res.json();
+                setDebts([created, ...debts]);
+                setIsCreating(false);
+                setNewDebt({ description: '', total_amount: '', type: 'to_pay', category_id: '', account_id: '', due_date: '' });
+            }
+        } catch (error) {
+            console.error('Error creating debt:', error);
+        }
+    };
+
+    const handleRecordPayment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!payingDebt) return;
+
+        try {
+            const amount = parseFloat(paymentData.amount);
+            const result = await payDebt({
+                debtId: payingDebt.id,
+                accountId: paymentData.accountId,
+                categoryId: paymentData.categoryId,
+                amount: amount,
+                description: paymentData.description || `Pago de deuda: ${payingDebt.description}`,
+                type: payingDebt.type
+            });
+
+            if (result.success) {
+                // Optimistic update or just wait for revalidation?
+                // Since it's a server action with revalidatePath, 
+                // but we have local state, let's update local state too.
+                const updatedDebts = debts.map(d => {
+                    if (d.id === payingDebt.id) {
+                        const newRemaining = Math.max(0, d.remaining_amount - amount);
+                        return {
+                            ...d,
+                            remaining_amount: newRemaining,
+                            status: newRemaining <= 0 ? 'paid' : 'active'
+                        } as Debt;
+                    }
+                    return d;
+                });
+                setDebts(updatedDebts);
+                setPayingDebt(null);
+                setPaymentData({
+                    amount: '',
+                    accountId: accounts[0]?.id || '',
+                    categoryId: '',
+                    description: ''
+                });
+            }
+        } catch (error) {
+            console.error('Error recording payment:', error);
+        }
+    };
+
+    const handleDeleteDebt = async (id: string) => {
+        try {
+            const res = await fetch(`${API_URL}/debts/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (res.ok) {
+                setDebts(debts.filter(d => d.id !== id));
+            }
+        } catch (error) {
+            console.error('Error deleting debt:', error);
+        }
+    };
+
+    return (
+        <div className="space-y-8 pb-32">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <Card variant="elevated" className="border-l-4 border-l-rose-500 bg-rose-500/[0.01]">
+                    <div className="flex items-center space-x-2 mb-2">
+                        <ArrowUpRight size={14} className="text-rose-500" />
+                        <Typography variant="body" className="text-rose-500 font-black uppercase tracking-widest text-[10px]">Total por Pagar</Typography>
+                    </div>
+                    <Typography variant="h1" className="text-rose-600 font-black tracking-tighter">
+                        {formatCurrency(stats.toPay)}
+                    </Typography>
+                </Card>
+                <Card variant="elevated" className="border-l-4 border-l-emerald-500 bg-emerald-500/[0.01]">
+                    <div className="flex items-center space-x-2 mb-2">
+                        <ArrowDownLeft size={14} className="text-emerald-500" />
+                        <Typography variant="body" className="text-emerald-500 font-black uppercase tracking-widest text-[10px]">Total por Recibir</Typography>
+                    </div>
+                    <Typography variant="h1" className="text-emerald-600 font-black tracking-tighter">
+                        {formatCurrency(stats.toReceive)}
+                    </Typography>
+                </Card>
+            </div>
+
+            <div className="flex justify-between items-center px-2">
+                <Typography variant="h3" className="flex items-center space-x-2">
+                    <Info size={18} className="text-foreground/20" />
+                    <span>Compromisos Pendientes</span>
+                </Typography>
+                {!isCreating && (
+                    <Button onClick={() => setIsCreating(true)} size="sm" variant="outline" className="border-foreground/10 hover:bg-foreground/5 transition-all">
+                        <Plus size={16} className="mr-2" />
+                        Agregar Registro
+                    </Button>
+                )}
+            </div>
+
+            {isCreating && (
+                <Card variant="glass" className="animate-in fade-in slide-in-from-top-4 duration-500 border-indigo-500/10 shadow-2xl">
+                    <div className="flex items-center space-x-3 mb-8">
+                        <div className="p-2 bg-indigo-500/10 rounded-xl">
+                            <Plus size={20} className="text-indigo-600" />
+                        </div>
+                        <Typography variant="h3">Nuevo Registro Financiero</Typography>
+                    </div>
+                    <form onSubmit={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="md:col-span-2">
+                            <InputField
+                                label="¿Qué es este registro?"
+                                placeholder="Ej: Préstamo de Juan, Deuda de servicios..."
+                                value={newDebt.description}
+                                onChange={(e) => setNewDebt({ ...newDebt, description: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <InputField
+                            label="Monto"
+                            type="number"
+                            placeholder="0.00"
+                            value={newDebt.total_amount}
+                            onChange={(e) => setNewDebt({ ...newDebt, total_amount: e.target.value })}
+                            required
+                        />
+                        <InputField
+                            label="Naturaleza"
+                            as="select"
+                            value={newDebt.type}
+                            onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as any })}
+                        >
+                            <option value="to_pay">Debio pagar (Egreso pendiente)</option>
+                            <option value="to_receive">Me deben (Ingreso pendiente)</option>
+                        </InputField>
+                        <InputField
+                            label="Categoría (Opcional)"
+                            as="select"
+                            value={newDebt.category_id}
+                            onChange={(e) => setNewDebt({ ...newDebt, category_id: e.target.value })}
+                        >
+                            <option value="">Automática (Préstamos)</option>
+                            {categories
+                                .filter(c => newDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                .map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))
+                            }
+                        </InputField>
+                        <InputField
+                            label="Cuenta del Movimiento (Opcional)"
+                            as="select"
+                            value={newDebt.account_id}
+                            onChange={(e) => setNewDebt({ ...newDebt, account_id: e.target.value })}
+                        >
+                            <option value="">Ninguna (No crea transacción)</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))}
+                        </InputField>
+                        <InputField
+                            label="Fecha Límite (Opcional)"
+                            type="date"
+                            value={newDebt.due_date}
+                            onChange={(e) => setNewDebt({ ...newDebt, due_date: e.target.value })}
+                        />
+                        <div className="flex justify-end space-x-4 md:col-span-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-foreground/40 hover:text-foreground">
+                                Cancelar
+                            </Button>
+                            <Button type="submit" className="shadow-lg shadow-indigo-500/20 px-8">
+                                Registrar Ahora
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            )}
+
+            {payingDebt && (
+                <Card variant="glass" className="animate-in fade-in zoom-in-95 duration-300 border-emerald-500/10 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                        <CheckCircle size={120} />
+                    </div>
+                    <div className="flex items-center space-x-3 mb-8">
+                        <div className="p-2 bg-emerald-500/10 rounded-xl">
+                            <CheckCircle size={20} className="text-emerald-600" />
+                        </div>
+                        <div>
+                            <Typography variant="h3">Registrar Pago / Abono</Typography>
+                            <Typography variant="small" className="opacity-50">Deuda: {payingDebt.description}</Typography>
+                        </div>
+                    </div>
+                    <form onSubmit={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                        <InputField
+                            label="Monto del Pago"
+                            type="number"
+                            placeholder="0.00"
+                            value={paymentData.amount}
+                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                            required
+                        />
+                        <InputField
+                            label="Cuenta de Origen/Destino"
+                            as="select"
+                            value={paymentData.accountId}
+                            onChange={(e) => setPaymentData({ ...paymentData, accountId: e.target.value })}
+                            required
+                        >
+                            <option value="">Selecciona una cuenta</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.balance)})</option>
+                            ))}
+                        </InputField>
+                        <InputField
+                            label="Categoría (Opcional)"
+                            as="select"
+                            value={paymentData.categoryId}
+                            onChange={(e) => setPaymentData({ ...paymentData, categoryId: e.target.value })}
+                        >
+                            <option value="">Automática (Abonos/Pagos)</option>
+                            {categories
+                                .filter(c => payingDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                .map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))
+                            }
+                        </InputField>
+                        <div className="md:col-span-2">
+                            <InputField
+                                label="Descripción (Opcional)"
+                                placeholder="Ej: Abono quincenal..."
+                                value={paymentData.description}
+                                onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
+                            />
+                        </div>
+                        <div className="flex justify-end space-x-4 md:col-span-2 pt-4">
+                            <Button type="button" variant="ghost" onClick={() => setPayingDebt(null)} className="text-foreground/40 hover:text-foreground">
+                                Cancelar
+                            </Button>
+                            <Button type="submit" variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
+                                Confirmar Pago
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            )}
+
+            <div className="space-y-4">
+                {debts.length === 0 ? (
+                    <Card variant="outline" padding="lg" className="text-center py-24 border-dashed border-foreground/10 bg-foreground/[0.01]">
+                        <div className="mx-auto h-20 w-20 text-foreground/10 mb-6 bg-foreground/[0.02] rounded-full flex items-center justify-center">
+                            <Calendar size={40} />
+                        </div>
+                        <Typography variant="h3" className="mb-2">Todo en orden</Typography>
+                        <Typography variant="body" className="text-foreground/40 mb-10 max-w-xs mx-auto">
+                            No tienes deudas o cuentas por cobrar registradas actualmente.
+                        </Typography>
+                        <Button onClick={() => setIsCreating(true)} variant="outline">
+                            <Plus size={18} className="mr-2" />
+                            Agregar Primer Compromiso
+                        </Button>
+                    </Card>
+                ) : (
+                    debts.map(debt => (
+                        <Card
+                            key={debt.id}
+                            variant={debt.status === 'paid' ? 'flat' : 'elevated'}
+                            className={`group transition-all duration-300 ${debt.status === 'paid' ? 'opacity-40 grayscale-[0.5]' : 'hover:scale-[1.005] hover:shadow-xl'}`}
+                        >
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="flex items-center space-x-5">
+                                    <div className={`p-4 rounded-2xl shadow-sm transition-colors ${debt.status === 'paid' ? 'bg-foreground/[0.05] text-foreground/20' :
+                                        debt.type === 'to_pay' ? 'bg-rose-500/[0.08] text-rose-600 border border-rose-500/10' :
+                                            'bg-emerald-500/[0.08] text-emerald-600 border border-emerald-500/10'
+                                        }`}>
+                                        {debt.type === 'to_pay' ? <ArrowUpRight size={24} /> : <ArrowDownLeft size={24} />}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Typography variant="h3" className={`font-black tracking-tight ${debt.status === 'paid' ? 'line-through opacity-50' : 'text-foreground/90'}`}>
+                                            {debt.description}
+                                        </Typography>
+                                        <div className="flex items-center space-x-3">
+                                            {debt.status === 'active' && (
+                                                <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${debt.type === 'to_pay' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'
+                                                    }`}>
+                                                    <span className="relative flex h-1.5 w-1.5">
+                                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${debt.type === 'to_pay' ? 'bg-rose-400' : 'bg-emerald-400'}`}></span>
+                                                        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${debt.type === 'to_pay' ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                                    </span>
+                                                    <span>Pendiente</span>
+                                                </div>
+                                            )}
+                                            <Typography variant="muted" className="text-xs font-medium">
+                                                {debt.status === 'paid' ? (
+                                                    <span className="flex items-center text-emerald-600/60 font-black uppercase tracking-widest text-[10px]">
+                                                        <CheckCircle size={12} className="mr-1" /> Finalizado
+                                                    </span>
+                                                ) : (
+                                                    <span className="opacity-60">
+                                                        Saldo: <span className="font-bold text-foreground/40">{formatCurrency(debt.remaining_amount)}</span>
+                                                        <span className="mx-2 opacity-30">•</span>
+                                                        <span className="font-bold text-foreground/40">{categories.find(c => c.id === debt.category_id)?.name || 'General'}</span>
+                                                        {debt.due_date && (
+                                                            <>
+                                                                <span className="mx-2 opacity-30">•</span>
+                                                                <span className="inline-flex items-center">
+                                                                    <Calendar size={12} className="mr-1 opacity-40" />
+                                                                    {new Date(debt.due_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                )}
+                                            </Typography>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between md:justify-end space-x-6">
+                                    <Typography variant="h2" className={`font-black tracking-tighter ${debt.status === 'paid' ? 'text-foreground/20' :
+                                        debt.type === 'to_pay' ? 'text-rose-600' : 'text-emerald-600'
+                                        }`}>
+                                        {formatCurrency(debt.total_amount)}
+                                    </Typography>
+
+                                    <div className="flex items-center space-x-2">
+                                        {debt.status === 'active' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setPayingDebt(debt);
+                                                    setPaymentData({ ...paymentData, amount: debt.remaining_amount.toString() });
+                                                }}
+                                                className="border-emerald-500/20 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl shadow-lg shadow-emerald-500/5 transition-all font-bold"
+                                            >
+                                                <CheckCircle size={16} className="mr-2" />
+                                                Registrar Pago
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="opacity-0 group-hover:opacity-100 transition-all bg-foreground/[0.02] text-foreground/20 hover:text-rose-500 hover:bg-rose-500/10 p-3 h-10 w-10 flex items-center justify-center rounded-2xl"
+                                            onClick={() => handleDeleteDebt(debt.id)}
+                                        >
+                                            <Trash2 size={18} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}

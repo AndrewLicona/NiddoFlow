@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { leaveFamily } from './actions'
+import { Typography } from '@/components/ui/atoms/Typography'
+import { Button } from '@/components/ui/atoms/Button'
+import { Card } from '@/components/ui/molecules/Card'
+import { InputField } from '@/components/ui/molecules/InputField'
+import { Home, Link as LinkIcon, Copy, Check, Users, LogOut, AlertTriangle, ShieldCheck } from 'lucide-react'
 
 type FamilyData = {
     id: string
@@ -22,7 +27,6 @@ export default function SettingsForm({ family, members }: { family: FamilyData, 
     const [isLeaving, setIsLeaving] = useState(false)
     const [hasCopied, setHasCopied] = useState(false)
 
-    // Need router to redirect
     const router = useRouter()
 
     const handleLeave = async () => {
@@ -30,7 +34,6 @@ export default function SettingsForm({ family, members }: { family: FamilyData, 
         setIsLeaving(true)
         try {
             await leaveFamily()
-            // Redirect manually after success
             router.push('/onboarding')
             router.refresh()
         } catch (error) {
@@ -41,170 +44,181 @@ export default function SettingsForm({ family, members }: { family: FamilyData, 
     }
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div className="px-4 py-5 sm:px-6">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">Información del Niddo</h3>
-                    <p className="mt-1 max-w-2xl text-sm text-gray-500">Detalles de tu familia actual.</p>
-                </div>
-                <div className="border-t border-gray-200">
-                    <dl>
-                        <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt className="text-sm font-medium text-gray-500">Nombre</dt>
-                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{family.name}</dd>
-                        </div>
-                        <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt className="text-sm font-medium text-gray-500">Invitación</dt>
-                            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <div className="flex items-center space-x-2">
-                                    <span className="font-mono font-bold text-lg bg-gray-100 px-2 py-1 rounded border border-gray-300">
-                                        {family.invite_code || '---'}
-                                    </span>
-                                    {family.invite_code && (
-                                        <button
-                                            onClick={() => {
-                                                const url = `${window.location.origin}/invite/${family.invite_code}`
-                                                navigator.clipboard.writeText(url)
-                                                setHasCopied(true)
-                                                setTimeout(() => setHasCopied(false), 2000)
-                                            }}
-                                            className={`inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white focus:outline-none transition-all duration-200 ${hasCopied ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                                        >
-                                            {hasCopied ? '¡Copiado! ✅' : 'Copiar Link 🔗'}
-                                        </button>
-                                    )}
-                                </div>
-                                <p className="mt-2 text-xs text-gray-500">
-                                    Comparte este enlace para que se unan directamente.
-                                </p>
-                            </dd>
-                        </div>
-                    </dl>
-                </div>
-            </div>
-
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+        <div className="space-y-8 pb-32">
+            {/* Family Info */}
+            <Card variant="elevated" className="overflow-hidden">
+                <div className="flex justify-between items-start mb-6">
                     <div>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Integrantes del Niddo</h3>
-                        <p className="mt-1 max-w-2xl text-sm text-gray-500">Personas que forman parte de tu familia.</p>
+                        <Typography variant="h3">Información del Niddo</Typography>
+                        <Typography variant="muted">Detalles de tu hogar y acceso familiar.</Typography>
                     </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {members.length} {members.length === 1 ? 'Integrante' : 'Integrantes'}
-                    </span>
                 </div>
-                <div className="border-t border-gray-200">
-                    <ul className="divide-y divide-gray-200">
-                        {members.map((member) => (
-                            <li key={member.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center space-x-4">
-                                    <div className="flex-shrink-0">
-                                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                                            {(member.full_name || member.email || '?')[0].toUpperCase()}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-900 truncate">
-                                            {member.full_name || 'Sin nombre'}
-                                        </p>
-                                        <p className="text-sm text-gray-500 truncate">
-                                            {member.email}
-                                        </p>
+
+                <div className="space-y-6">
+                    <div className="bg-foreground/[0.01] p-5 rounded-2xl border border-foreground/[0.03] flex justify-between items-center transition-colors hover:bg-foreground/[0.02]">
+                        <div>
+                            <Typography variant="small" className="opacity-40 font-black uppercase tracking-widest text-[10px] mb-1">Nombre del Niddo</Typography>
+                            <Typography variant="h3" className="text-foreground/90">{family.name}</Typography>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-foreground/[0.05]">
+                            <Home size={24} className="text-blue-500" />
+                        </div>
+                    </div>
+
+                    <div className="bg-blue-500/[0.03] p-5 rounded-2xl border border-blue-500/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-blue-500/10 rounded-2xl">
+                                <LinkIcon size={20} className="text-blue-600" />
+                            </div>
+                            <div>
+                                <Typography variant="small" className="text-blue-500/60 font-black uppercase tracking-widest text-[10px]">Código de Invitación</Typography>
+                                <Typography variant="body" className="font-mono text-xl font-black text-blue-700 mt-0.5 tracking-wider">
+                                    {family.invite_code || '---'}
+                                </Typography>
+                            </div>
+                        </div>
+                        {family.invite_code && (
+                            <Button
+                                size="sm"
+                                variant={hasCopied ? 'success' : 'primary'}
+                                onClick={() => {
+                                    const url = `${window.location.origin}/invite/${family.invite_code}`
+                                    navigator.clipboard.writeText(url)
+                                    setHasCopied(true)
+                                    setTimeout(() => setHasCopied(false), 2000)
+                                }}
+                                className="md:w-auto w-full shadow-lg shadow-blue-500/10"
+                            >
+                                {hasCopied ? (
+                                    <><Check size={16} className="mr-2" /> ¡Copiado!</>
+                                ) : (
+                                    <><Copy size={16} className="mr-2" /> Copiar Invitación</>
+                                )}
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Card>
+
+            {/* Members List */}
+            <Card variant="elevated">
+                <div className="flex justify-between items-center mb-8">
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-indigo-500/10 rounded-xl">
+                            <Users size={20} className="text-indigo-600" />
+                        </div>
+                        <div>
+                            <Typography variant="h3">Integrantes</Typography>
+                            <Typography variant="muted">{members.length} personas forman parte de este Niddo.</Typography>
+                        </div>
+                    </div>
+                </div>
+
+                <ul className="space-y-4">
+                    {members.map((member) => (
+                        <li key={member.id} className="group">
+                            <div className="flex items-center p-4 rounded-2xl hover:bg-foreground/[0.02] transition-all border border-transparent border-foreground/[0.03] group-hover:border-foreground/[0.08]">
+                                <div className="flex-shrink-0">
+                                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white font-black text-xl shadow-md group-hover:scale-105 transition-transform duration-300">
+                                        {(member.full_name || member.email || '?')[0].toUpperCase()}
                                     </div>
                                 </div>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
-
-            <div className="bg-red-50 shadow sm:rounded-lg border border-red-200">
-                <div className="px-4 py-5 sm:p-6">
-                    <h3 className="text-lg leading-6 font-medium text-red-900">Zona de Peligro</h3>
-                    <div className="mt-2 max-w-xl text-sm text-red-500">
-                        <p>Si sales de esta familia, perderás acceso a las cuentas compartidas y deberás unirte o crear una nueva familia.</p>
-                    </div>
-                    <div className="mt-5">
-                        <button
-                            type="button"
-                            onClick={() => setIsLeaveModalOpen(true)}
-                            className="inline-flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm"
-                        >
-                            Salir de la Familia
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Modal */}
-            {isLeaveModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setIsLeaveModalOpen(false)}></div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative z-50">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                <div className="sm:flex sm:items-start">
-                                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                        <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                    </div>
-                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                        <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                            Confirmar Salida
-                                        </h3>
-                                        <div className="mt-4">
-                                            <p className="text-base text-gray-700 font-medium mb-2">
-                                                Escribe el nombre exacto de la familia para confirmar:
-                                            </p>
-                                            <div className="p-3 bg-gray-100 rounded text-center text-lg font-bold text-gray-900 mb-4 select-none border border-gray-300">
-                                                {family.name}
-                                            </div>
-
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Escribir nombre aquí:</label>
-                                            <input
-                                                type="text"
-                                                className="shadow-sm focus:ring-red-500 focus:border-red-500 block w-full text-lg border-2 border-gray-400 rounded-md p-2 text-gray-900 placeholder-gray-400"
-                                                placeholder={family.name}
-                                                value={confirmName}
-                                                onChange={(e) => setConfirmName(e.target.value)}
-                                                onPaste={(e) => {
-                                                    e.preventDefault()
-                                                    alert('A ver, a ver... ¡Nada de copiar y pegar! Escríbelo por favor. 😉')
-                                                }}
-                                                autoComplete="off"
-                                            />
-                                        </div>
-                                    </div>
+                                <div className="ml-5 flex-1">
+                                    <Typography variant="body" className="font-black text-foreground/80">
+                                        {member.full_name || 'Sin nombre configurado'}
+                                    </Typography>
+                                    <Typography variant="muted" className="text-xs mt-0.5 font-medium opacity-60">
+                                        {member.email}
+                                    </Typography>
+                                </div>
+                                <div className="px-3 py-1 bg-foreground/[0.05] text-foreground/40 rounded-xl text-[10px] font-black tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Miembro
                                 </div>
                             </div>
-                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                <button
-                                    type="button"
+                        </li>
+                    ))}
+                </ul>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card variant="elevated" className="border-rose-500/10 bg-rose-500/[0.01]">
+                <div className="flex items-center space-x-3 mb-4">
+                    <div className="p-2 bg-rose-500/10 rounded-xl">
+                        <AlertTriangle size={20} className="text-rose-500" />
+                    </div>
+                    <Typography variant="h3" className="text-rose-600">Zona Peligrosa</Typography>
+                </div>
+                <Typography variant="body" className="text-rose-900/40 mb-8 text-sm leading-relaxed max-w-2xl">
+                    Al abandonar este Niddo, perderás acceso instantáneo a todas las finanzas compartidas. Esta acción requiere confirmación manual para evitar accidentes.
+                </Typography>
+                <Button
+                    variant="outline"
+                    onClick={() => setIsLeaveModalOpen(true)}
+                    className="border-rose-500/20 text-rose-600 hover:bg-rose-500 hover:text-white transition-all w-full md:w-auto"
+                >
+                    <LogOut size={16} className="mr-2" />
+                    Abandonar Niddo
+                </Button>
+            </Card>
+
+            {/* Premium Modal for Leaving */}
+            {isLeaveModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-500">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsLeaveModalOpen(false)}></div>
+
+                    <Card variant="glass" className="relative w-full max-w-md shadow-2xl border-white/5 dark:border-white/10 p-10 transform animate-in zoom-in-95 duration-300 rounded-[32px]">
+                        <div className="flex flex-col items-center text-center space-y-6 mb-10">
+                            <div className="h-20 w-20 bg-rose-500/10 text-rose-600 rounded-[28px] flex items-center justify-center shadow-inner border border-rose-500/20">
+                                <AlertTriangle size={40} />
+                            </div>
+                            <div className="space-y-2">
+                                <Typography variant="h2" className="text-foreground tracking-tight">¿Estás seguro?</Typography>
+                                <Typography variant="body" className="text-foreground/40 text-sm">
+                                    Confirma que deseas salir de <b>{family.name}</b> escribiendo el nombre abajo.
+                                </Typography>
+                            </div>
+                        </div>
+
+                        <div className="space-y-8">
+                            <div className="p-4 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] text-center font-black tracking-widest text-foreground/20 select-none text-sm uppercase">
+                                {family.name}
+                            </div>
+
+                            <InputField
+                                label="Validación de Seguridad"
+                                placeholder={`Escribe exactamente "${family.name}"`}
+                                value={confirmName}
+                                onChange={(e) => setConfirmName(e.target.value)}
+                                onPaste={(e) => {
+                                    e.preventDefault()
+                                    alert('¡Escríbelo manualmente! Es por tu seguridad 🛡️')
+                                }}
+                                autoComplete="off"
+                                className="text-center"
+                            />
+
+                            <div className="flex flex-col gap-4 pt-4">
+                                <Button
+                                    variant="danger"
                                     onClick={handleLeave}
                                     disabled={confirmName !== family.name || isLeaving}
-                                    className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm ${(confirmName !== family.name || isLeaving) ? 'opacity-50 cursor-not-allowed' : ''
-                                        }`}
+                                    className="w-full py-5 text-lg font-black tracking-wide rounded-2xl shadow-xl shadow-rose-500/20"
                                 >
-                                    {isLeaving ? 'Saliendo...' : 'Sí, salir de la familia'}
-                                </button>
-                                <button
-                                    type="button"
+                                    {isLeaving ? 'Saliendo...' : 'Confirmar y Abandonar'}
+                                </Button>
+                                <Button
+                                    variant="ghost"
                                     onClick={() => {
                                         setIsLeaveModalOpen(false)
                                         setConfirmName('')
                                     }}
-                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    className="w-full text-foreground/40 hover:text-foreground font-bold"
                                 >
-                                    Cancelar
-                                </button>
+                                    No, cancelar
+                                </Button>
                             </div>
                         </div>
-                    </div>
+                    </Card>
                 </div>
             )}
         </div>

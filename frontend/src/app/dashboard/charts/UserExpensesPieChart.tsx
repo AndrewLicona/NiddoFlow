@@ -1,4 +1,3 @@
-// src/app/dashboard/charts/UserExpensesPieChart.tsx
 'use client';
 
 import React, { useMemo } from 'react';
@@ -28,7 +27,7 @@ interface Props {
     profiles: Profile[];
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
+const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6', '#06B6D4', '#EC4899'];
 
 const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
     const data = useMemo(() => {
@@ -63,7 +62,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
 
     if (data.length === 0) {
         return (
-            <div className="flex h-64 items-center justify-center text-gray-400">
+            <div className="flex h-64 items-center justify-center text-foreground/30 font-medium">
                 No hay datos de integrantes para mostrar.
             </div>
         );
@@ -79,7 +78,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
                         cy="45%"
                         innerRadius={60}
                         outerRadius={80}
-                        fill="#8884d8"
+                        stroke="none"
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                     >
@@ -89,9 +88,21 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
                     </Pie>
                     <Tooltip
                         formatter={(value: number | undefined) => [formatCurrency(value ?? 0), 'Total Gastado']}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid rgba(var(--foreground), 0.1)',
+                            backgroundColor: 'var(--card)',
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            color: 'var(--foreground)'
+                        }}
+                        itemStyle={{ color: 'var(--foreground)' }}
                     />
-                    <Legend verticalAlign="bottom" height={36} />
+                    <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        iconType="circle"
+                        formatter={(value) => <span className="text-foreground/60 text-xs font-bold">{value}</span>}
+                    />
                 </PieChart>
             </ResponsiveContainer>
         </div>

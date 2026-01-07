@@ -1,16 +1,18 @@
-// src/app/dashboard/charts/page.tsx
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import BalanceLineChart from './BalanceLineChart';
 import IncomeExpenseBarChart from './IncomeExpenseBarChart';
 import CategoryBarChart from './CategoryBarChart';
 import ExpensesAreaChart from './ExpensesAreaChart';
 import UserExpensesPieChart from './UserExpensesPieChart';
+import { PageHeader } from '@/components/ui/molecules/PageHeader';
+import { Card } from '@/components/ui/molecules/Card';
+import { Typography } from '@/components/ui/atoms/Typography';
+import { Button } from '@/components/ui/atoms/Button';
+import { ChevronLeft, ChevronRight, X, RotateCcw } from 'lucide-react';
 
-// Types for fetched data
 interface Account {
     id: string;
     balance: number;
@@ -27,9 +29,9 @@ interface Transaction {
     id: string;
     amount: number;
     user_id: string;
-    category: string; // Display name from join
+    category: string;
     categories?: { name: string };
-    date: string; // ISO string
+    date: string;
     type: 'income' | 'expense';
     description: string;
 }
@@ -48,7 +50,6 @@ const ChartsPage: React.FC = () => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
 
-    // Fetch data once on mount
     useEffect(() => {
         const fetchData = async () => {
             const supabase = createClient();
@@ -91,105 +92,108 @@ const ChartsPage: React.FC = () => {
         { id: 'balanceLine', title: 'Balance Acumulado', component: <BalanceLineChart accounts={accounts} transactions={transactions} /> },
         { id: 'incomeExpenseBar', title: 'Flujo de Caja', component: <IncomeExpenseBarChart transactions={transactions} /> },
         { id: 'categoryBar', title: 'Ranking de Gastos', component: <CategoryBarChart transactions={transactions} /> },
-        { id: 'expensesArea', title: 'Tendencia de Gastos (Área)', component: <ExpensesAreaChart transactions={transactions} /> },
-        { id: 'userExpenses', title: '¿Quién gasta más? (Por Integrante)', component: <UserExpensesPieChart transactions={transactions} profiles={profiles} /> },
+        { id: 'expensesArea', title: 'Tendencia de Gastos', component: <ExpensesAreaChart transactions={transactions} /> },
+        { id: 'userExpenses', title: 'Gastos por Integrante', component: <UserExpensesPieChart transactions={transactions} profiles={profiles} /> },
     ].filter(item => visibleCharts.includes(item.id));
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-            <header className="p-6 bg-white border-b border-gray-200 flex justify-between items-center">
-                <div className="flex items-center space-x-4">
-                    <Link href="/" className="p-2 rounded-full hover:bg-gray-100 transition-colors text-blue-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7 7-7" />
-                        </svg>
-                    </Link>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        Dashboard – Gráficos
-                    </h1>
-                </div>
-                <div className="flex space-x-2">
-                    {chartItems.map((_, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => scrollTo(idx)}
-                            className={`w-3 h-3 rounded-full transition-all ${activeIndex === idx ? 'bg-blue-600 w-6' : 'bg-gray-300'}`}
-                        />
-                    ))}
-                </div>
-            </header>
+        <div className="min-h-screen bg-background flex flex-col pb-24">
+            <div className="max-w-5xl mx-auto w-full p-4 md:p-8 space-y-8 flex-1 flex flex-col">
+                <PageHeader
+                    title="Analítica Visual"
+                    description="Explora tus hábitos financieros con gráficos interactivos."
+                    backHref="/"
+                    actions={
+                        <div className="flex space-x-2">
+                            {chartItems.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => scrollTo(idx)}
+                                    className={`w-2 h-2 rounded-full transition-all duration-300 ${activeIndex === idx ? 'bg-blue-600 w-6' : 'bg-foreground/20'}`}
+                                />
+                            ))}
+                        </div>
+                    }
+                />
 
-            <main className="flex-1 flex flex-col justify-center overflow-hidden relative">
-                <div
-                    ref={scrollRef}
-                    onScroll={handleScroll}
-                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide h-[60vh]"
-                >
-                    {chartItems.length > 0 ? (
-                        chartItems.map((item) => (
-                            <div key={item.id} className="flex-shrink-0 w-full snap-center px-4 md:px-12">
-                                <div className="bg-white rounded-2xl shadow-xl p-8 h-full flex flex-col relative border border-gray-100">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h2 className="text-xl font-bold text-gray-800">{item.title}</h2>
-                                        <button
-                                            className="text-gray-400 hover:text-red-500 transition-colors"
-                                            onClick={() => removeChart(item.id)}
-                                            title="Remover gráfico"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div className="flex-1 min-h-0">
-                                        {item.component}
-                                    </div>
+                <main className="flex-1 flex flex-col justify-center relative min-h-[500px]">
+                    <div
+                        ref={scrollRef}
+                        onScroll={handleScroll}
+                        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide flex-1"
+                    >
+                        {chartItems.length > 0 ? (
+                            chartItems.map((item) => (
+                                <div key={item.id} className="flex-shrink-0 w-full snap-center px-2 md:px-4">
+                                    <Card variant="elevated" className="h-full flex flex-col border-foreground/[0.03] shadow-2xl shadow-blue-500/5">
+                                        <div className="flex justify-between items-center mb-8">
+                                            <div className="space-y-1">
+                                                <Typography variant="small" className="text-blue-600 font-bold uppercase tracking-widest text-[10px]">Visualización</Typography>
+                                                <Typography variant="h2" className="text-foreground font-black tracking-tight">{item.title}</Typography>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-foreground/30 hover:text-rose-500 transition-colors rounded-full p-2"
+                                                onClick={() => removeChart(item.id)}
+                                            >
+                                                <X size={20} />
+                                            </Button>
+                                        </div>
+                                        <div className="flex-1 min-h-0 bg-foreground/[0.01] rounded-3xl p-4 md:p-8">
+                                            {item.component}
+                                        </div>
+                                    </Card>
                                 </div>
+                            ))
+                        ) : (
+                            <div className="w-full flex flex-col items-center justify-center p-12 text-center space-y-6">
+                                <div className="p-6 bg-foreground/5 rounded-full text-foreground/20">
+                                    <RotateCcw size={48} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Typography variant="h3" className="text-foreground/70 font-black">No hay gráficos visibles</Typography>
+                                    <Typography variant="body" className="text-foreground/40">Has ocultado todas las visualizaciones del dashboard.</Typography>
+                                </div>
+                                <Button
+                                    onClick={() => setVisibleCharts(['balanceLine', 'incomeExpenseBar', 'categoryBar', 'expensesArea', 'userExpenses'])}
+                                    className="shadow-xl shadow-blue-500/20"
+                                >
+                                    Restaurar Gráficos
+                                </Button>
                             </div>
-                        ))
-                    ) : (
-                        <div className="w-full flex flex-col items-center justify-center text-gray-500 p-12">
-                            <p className="text-lg">No hay gráficos visibles.</p>
-                            <button
-                                onClick={() => setVisibleCharts(['balanceLine', 'incomeExpenseBar', 'categoryBar', 'expensesArea', 'userExpenses'])}
-                                className="mt-4 text-blue-600 hover:underline"
+                        )}
+                    </div>
+
+                    {/* Navigation Arrows */}
+                    {chartItems.length > 1 && (
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none px-4 md:-mx-8">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => scrollTo(activeIndex - 1)}
+                                className={`pointer-events-auto h-12 w-12 rounded-full bg-card shadow-2xl border border-foreground/5 text-foreground transition-all flex items-center justify-center ${activeIndex === 0 ? 'opacity-0 scale-90 translate-x-4' : 'opacity-100 scale-100 translate-x-0'}`}
                             >
-                                Restaurar todos los gráficos
-                            </button>
+                                <ChevronLeft size={24} />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => scrollTo(activeIndex + 1)}
+                                className={`pointer-events-auto h-12 w-12 rounded-full bg-card shadow-2xl border border-foreground/5 text-foreground transition-all flex items-center justify-center ${activeIndex === chartItems.length - 1 ? 'opacity-0 scale-90 -translate-x-4' : 'opacity-100 scale-100 translate-x-0'}`}
+                            >
+                                <ChevronRight size={24} />
+                            </Button>
                         </div>
                     )}
-                </div>
+                </main>
 
-                {/* Navigation Arrows */}
-                {chartItems.length > 1 && (
-                    <>
-                        <button
-                            onClick={() => scrollTo(activeIndex - 1)}
-                            disabled={activeIndex === 0}
-                            className={`absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/80 shadow-lg hover:bg-white transition-all ${activeIndex === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <button
-                            onClick={() => scrollTo(activeIndex + 1)}
-                            disabled={activeIndex === chartItems.length - 1}
-                            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/80 shadow-lg hover:bg-white transition-all ${activeIndex === chartItems.length - 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </>
-                )}
-            </main>
-
-            <footer className="p-6 text-center">
-                <p className="text-sm text-gray-500">
-                    Desliza para ver más información sobre tus finanzas.
-                </p>
-            </footer>
+                <footer className="pt-8 text-center">
+                    <Typography variant="muted" className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-30">
+                        Desliza o usa las flechas para explorar • NiddoFlow Analytics
+                    </Typography>
+                </footer>
+            </div>
 
             <style jsx global>{`
                 .scrollbar-hide::-webkit-scrollbar {

@@ -52,7 +52,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
 
     if (data.length === 0) {
         return (
-            <div className="flex h-64 items-center justify-center text-gray-400">
+            <div className="flex h-64 items-center justify-center text-foreground/30">
                 No hay datos de gastos para mostrar.
             </div>
         );
@@ -70,14 +70,22 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
                     <YAxis
                         dataKey="category"
                         type="category"
-                        fontSize={12}
+                        fontSize={10}
                         width={80}
-                        tick={{ fill: '#4b5563' }}
+                        tick={{ fill: 'currentColor', opacity: 0.6 }}
+                        className="text-foreground"
                     />
                     <Tooltip
                         formatter={(value: number | undefined) => [formatCurrency(value ?? 0), 'Gastos']}
-                        cursor={{ fill: '#f3f4f6' }}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        cursor={{ fill: 'currentColor', opacity: 0.05 }}
+                        contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid rgba(var(--foreground), 0.1)',
+                            backgroundColor: 'var(--card)',
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            color: 'var(--foreground)'
+                        }}
+                        itemStyle={{ color: 'var(--foreground)' }}
                     />
                     <Bar dataKey="amount" radius={[0, 4, 4, 0]} barSize={20}>
                         {data.map((entry, index) => (
@@ -88,6 +96,6 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
             </ResponsiveContainer>
         </div>
     );
-};
+}
 
 export default CategoryBarChart;

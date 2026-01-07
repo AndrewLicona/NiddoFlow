@@ -14,6 +14,14 @@ class TransactionBase(BaseModel):
 class TransactionCreate(TransactionBase):
     pass
 
+class TransactionUpdate(BaseModel):
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    type: Optional[Literal['income', 'expense', 'transfer']] = None
+    date: Optional[datetime] = None
+    category_id: Optional[UUID] = None
+    account_id: Optional[UUID] = None
+
 class TransactionResponse(TransactionBase):
     id: UUID
     user_id: Optional[UUID]
