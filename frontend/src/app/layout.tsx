@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,7 +12,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+}
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
   title: {
     default: "NiddoFlow | Finanzas Familiares en Armonía",
     template: "%s | NiddoFlow",
@@ -44,9 +49,16 @@ export const metadata: Metadata = {
     description: "Gestiona tus finanzas familiares sin complicaciones.",
     images: ["/og-image.png"],
   },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "NiddoFlow",
+  },
 };
 
-import { Navigation } from "@/components/ui/organisms/Navigation";
+import { PWAProvider } from "@/components/providers/PWAProvider";
+import MainLayout from "@/components/providers/MainLayout";
 
 export default function RootLayout({
   children,
@@ -56,10 +68,13 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F8FAFC] min-h-screen mb-20 md:mb-0 md:pl-20`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Navigation />
-        {children}
+        <PWAProvider>
+          <MainLayout>
+            {children}
+          </MainLayout>
+        </PWAProvider>
       </body>
     </html>
   );

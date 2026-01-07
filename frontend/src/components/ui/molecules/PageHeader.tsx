@@ -7,9 +7,11 @@ interface PageHeaderProps {
     description?: string;
     backHref?: string;
     actions?: React.ReactNode;
+    showProfile?: boolean;
+    userProfile?: any;
 }
 
-export const PageHeader = ({ title, description, backHref, actions }: PageHeaderProps) => {
+export const PageHeader = ({ title, description, backHref, actions, showProfile, userProfile }: PageHeaderProps) => {
     return (
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div className="flex items-center space-x-4">
@@ -23,9 +25,16 @@ export const PageHeader = ({ title, description, backHref, actions }: PageHeader
                         </svg>
                     </Link>
                 )}
-                <div>
-                    <Typography as="h1" variant="h1">{title}</Typography>
-                    {description && <Typography variant="body" className="mt-0.5">{description}</Typography>}
+                <div className="flex items-center space-x-4">
+                    {showProfile && userProfile && (
+                        <div className="h-12 w-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-blue-500/20">
+                            {userProfile.full_name?.charAt(0) || userProfile.email?.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <div>
+                        <Typography as="h1" variant="h1" className="tracking-tight">{title}</Typography>
+                        {description && <Typography variant="body" className="mt-0.5 opacity-60">{description}</Typography>}
+                    </div>
                 </div>
             </div>
             {actions && (

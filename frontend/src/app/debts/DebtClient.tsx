@@ -369,21 +369,23 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             variant={debt.status === 'paid' ? 'flat' : 'elevated'}
                             className={`group transition-all duration-300 ${debt.status === 'paid' ? 'opacity-40 grayscale-[0.5]' : 'hover:scale-[1.005] hover:shadow-xl'}`}
                         >
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="flex items-center space-x-5">
-                                    <div className={`p-4 rounded-2xl shadow-sm transition-colors ${debt.status === 'paid' ? 'bg-foreground/[0.05] text-foreground/20' :
-                                        debt.type === 'to_pay' ? 'bg-rose-500/[0.08] text-rose-600 border border-rose-500/10' :
-                                            'bg-emerald-500/[0.08] text-emerald-600 border border-emerald-500/10'
-                                        }`}>
-                                        {debt.type === 'to_pay' ? <ArrowUpRight size={24} /> : <ArrowDownLeft size={24} />}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Typography variant="h3" className={`font-black tracking-tight ${debt.status === 'paid' ? 'line-through opacity-50' : 'text-foreground/90'}`}>
-                                            {debt.description}
-                                        </Typography>
-                                        <div className="flex items-center space-x-3">
+                            <div className="flex flex-col gap-4 md:gap-6">
+                                {/* Top Row: Icon, Description and Amount */}
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-center space-x-4 min-w-0">
+                                        <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl shadow-sm transition-colors flex-shrink-0 ${debt.status === 'paid' ? 'bg-foreground/[0.05] text-foreground/20' :
+                                            debt.type === 'to_pay' ? 'bg-rose-500/[0.08] text-rose-600 border border-rose-500/10' :
+                                                'bg-emerald-500/[0.08] text-emerald-600 border border-emerald-500/10'
+                                            }`}>
+                                            {debt.type === 'to_pay' ? <ArrowUpRight size={20} className="md:w-6 md:h-6" /> : <ArrowDownLeft size={20} className="md:w-6 md:h-6" />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <Typography variant="h3" className={`font-black tracking-tight truncate md:text-lg leading-tight ${debt.status === 'paid' ? 'line-through opacity-50' : 'text-foreground/90'}`}>
+                                                {debt.description}
+                                            </Typography>
+
                                             {debt.status === 'active' && (
-                                                <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${debt.type === 'to_pay' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'
+                                                <div className={`inline-flex items-center space-x-1.5 px-2 py-0.5 mt-1 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest ${debt.type === 'to_pay' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'
                                                     }`}>
                                                     <span className="relative flex h-1.5 w-1.5">
                                                         <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${debt.type === 'to_pay' ? 'bg-rose-400' : 'bg-emerald-400'}`}></span>
@@ -392,40 +394,52 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                                     <span>Pendiente</span>
                                                 </div>
                                             )}
-                                            <Typography variant="muted" className="text-xs font-medium">
-                                                {debt.status === 'paid' ? (
-                                                    <span className="flex items-center text-emerald-600/60 font-black uppercase tracking-widest text-[10px]">
-                                                        <CheckCircle size={12} className="mr-1" /> Finalizado
-                                                    </span>
-                                                ) : (
-                                                    <span className="opacity-60">
-                                                        Saldo: <span className="font-bold text-foreground/40">{formatCurrency(debt.remaining_amount)}</span>
-                                                        <span className="mx-2 opacity-30">•</span>
-                                                        <span className="font-bold text-foreground/40">{categories.find(c => c.id === debt.category_id)?.name || 'General'}</span>
-                                                        {debt.due_date && (
-                                                            <>
-                                                                <span className="mx-2 opacity-30">•</span>
-                                                                <span className="inline-flex items-center">
-                                                                    <Calendar size={12} className="mr-1 opacity-40" />
-                                                                    {new Date(debt.due_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                    </span>
-                                                )}
-                                            </Typography>
                                         </div>
+                                    </div>
+
+                                    <div className="text-right flex-shrink-0">
+                                        <Typography variant="h2" className={`font-black tracking-tighter text-xl md:text-3xl ${debt.status === 'paid' ? 'text-foreground/20' :
+                                            debt.type === 'to_pay' ? 'text-rose-600' : 'text-emerald-600'
+                                            }`}>
+                                            {formatCurrency(debt.total_amount)}
+                                        </Typography>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between md:justify-end space-x-6">
-                                    <Typography variant="h2" className={`font-black tracking-tighter ${debt.status === 'paid' ? 'text-foreground/20' :
-                                        debt.type === 'to_pay' ? 'text-rose-600' : 'text-emerald-600'
-                                        }`}>
-                                        {formatCurrency(debt.total_amount)}
-                                    </Typography>
+                                {/* Divider for mobile only */}
+                                <div className="h-px w-full bg-foreground/[0.03] md:hidden" />
 
-                                    <div className="flex items-center space-x-2">
+                                {/* Bottom Row/Area: Metadata and Actions */}
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <Typography variant="muted" className="text-[10px] md:text-xs font-medium">
+                                            {debt.status === 'paid' ? (
+                                                <span className="flex items-center text-emerald-600/60 font-black uppercase tracking-widest">
+                                                    <CheckCircle size={12} className="mr-1" /> Finalizado
+                                                </span>
+                                            ) : (
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 opacity-60">
+                                                    <div className="flex items-center">
+                                                        <span className="opacity-50 mr-1.5">Saldo:</span>
+                                                        <span className="font-bold text-foreground/60">{formatCurrency(debt.remaining_amount)}</span>
+                                                    </div>
+                                                    <span className="hidden md:block opacity-30">•</span>
+                                                    <div className="font-bold text-foreground/60 uppercase tracking-widest text-[9px]">{categories.find(c => c.id === debt.category_id)?.name || 'General'}</div>
+                                                    {debt.due_date && (
+                                                        <>
+                                                            <span className="hidden md:block opacity-30">•</span>
+                                                            <div className="inline-flex items-center font-bold text-foreground/60">
+                                                                <Calendar size={12} className="mr-1 opacity-40" />
+                                                                {new Date(debt.due_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Typography>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2 w-full md:w-auto">
                                         {debt.status === 'active' && (
                                             <Button
                                                 variant="outline"
@@ -434,7 +448,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                                     setPayingDebt(debt);
                                                     setPaymentData({ ...paymentData, amount: debt.remaining_amount.toString() });
                                                 }}
-                                                className="border-emerald-500/20 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl shadow-lg shadow-emerald-500/5 transition-all font-bold"
+                                                className="flex-1 md:flex-none border-emerald-500/20 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl shadow-lg shadow-emerald-500/5 transition-all font-black text-xs h-10 px-6"
                                             >
                                                 <CheckCircle size={16} className="mr-2" />
                                                 Registrar Pago
@@ -443,7 +457,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="opacity-0 group-hover:opacity-100 transition-all bg-foreground/[0.02] text-foreground/20 hover:text-rose-500 hover:bg-rose-500/10 p-3 h-10 w-10 flex items-center justify-center rounded-2xl"
+                                            className="bg-foreground/[0.02] text-foreground/20 hover:text-rose-500 hover:bg-rose-500/10 h-10 w-10 flex items-center justify-center rounded-xl md:rounded-2xl flex-shrink-0"
                                             onClick={() => handleDeleteDebt(debt.id)}
                                         >
                                             <Trash2 size={18} />

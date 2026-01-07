@@ -2,13 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
-
-    // Type-casting here for convenience
-    // In a real app, you might want to validate the formData
     const email = formData.get('email') as string
     const password = formData.get('password') as string
 
@@ -18,7 +16,7 @@ export async function login(formData: FormData) {
     })
 
     if (error) {
-        redirect('/login?error=Could not authenticate user')
+        redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
     revalidatePath('/', 'layout')
@@ -43,11 +41,12 @@ export async function signup(formData: FormData) {
     })
 
     if (error) {
-        redirect('/login?error=Could not authenticate user')
+        redirect(`/register?error=${encodeURIComponent(error.message)}`)
     }
 
     revalidatePath('/', 'layout')
-    redirect('/')
+    // Redirect to register with success=true to show the "Check email" notice
+    redirect('/register?success=true')
 }
 
 export async function signout() {
@@ -58,15 +57,18 @@ export async function signout() {
 
 export async function loginWithGoogle() {
     const supabase = await createClient()
+    const headerList = await headers()
+    const origin = headerList.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`,
+            redirectTo: `${origin}/auth/callback`,
         },
     })
 
     if (error) {
-        redirect('/login?error=Could not initiate Google login')
+        redirect(`/login?error=${encodeURIComponent(error.message)}`)
     }
 
     if (data.url) {

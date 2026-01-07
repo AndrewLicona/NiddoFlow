@@ -1,10 +1,40 @@
 import { signup, loginWithGoogle } from '../login/actions'
 import Link from 'next/link'
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+    const isSuccess = (await searchParams).success === 'true';
+    const error = (await searchParams).error;
+
+    if (isSuccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+                <div className="max-w-md w-full p-8 bg-white rounded-3xl shadow-xl border border-slate-100 text-center space-y-6">
+                    <div className="mx-auto w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center animate-bounce">
+                        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">¡Revisa tu correo!</h2>
+                        <p className="mt-3 text-slate-600 font-medium">
+                            Hemos enviado un enlace de confirmación a tu cuenta. Por favor, confírmalo para empezar a usar NiddoFlow.
+                        </p>
+                    </div>
+                    <Link href="/login" className="block w-full py-4 px-6 bg-blue-600 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all uppercase tracking-widest text-xs">
+                        Ir al inicio de sesión
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-2xl shadow-xl border border-slate-100">
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+            <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-3xl shadow-xl border border-slate-100">
                 <div className="text-center">
                     <h1 className="text-4xl font-extrabold text-blue-600 tracking-tight">NiddoFlow</h1>
                     <h2 className="mt-6 text-3xl font-bold text-slate-900">Crear cuenta</h2>
@@ -14,46 +44,60 @@ export default function RegisterPage() {
                 </div>
 
                 <form className="mt-8 space-y-6">
-                    <div className="rounded-md shadow-sm -space-y-px">
+                    {error && (
+                        <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold text-center animate-in fade-in slide-in-from-top-2">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
                         <div>
-                            <label htmlFor="full-name" className="sr-only">Nombre Completo</label>
+                            <label htmlFor="full-name" className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Nombre Completo</label>
                             <input
                                 id="full-name"
                                 name="fullName"
                                 type="text"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-slate-300 placeholder-slate-500 text-slate-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Nombre Completo"
+                                className="appearance-none relative block w-full px-4 py-3 border border-slate-200 placeholder-slate-400 text-slate-900 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all sm:text-sm bg-slate-50/50"
+                                placeholder="Andrew Licona"
                             />
                         </div>
                         <div>
-                            <label htmlFor="email-address" className="sr-only">Correo Electrónico</label>
+                            <label htmlFor="email-address" className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Correo Electrónico</label>
                             <input
                                 id="email-address"
                                 name="email"
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-slate-300 placeholder-slate-500 text-slate-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Correo Electrónico"
+                                className="appearance-none relative block w-full px-4 py-3 border border-slate-200 placeholder-slate-400 text-slate-900 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all sm:text-sm bg-slate-50/50"
+                                placeholder="tu@email.com"
                             />
                         </div>
                         <div>
-                            <label htmlFor="password" className="sr-only">Contraseña</label>
+                            <label htmlFor="password" className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Contraseña</label>
                             <input
                                 id="password"
                                 name="password"
                                 type="password"
                                 autoComplete="new-password"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-slate-300 placeholder-slate-500 text-slate-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Contraseña"
+                                className="appearance-none relative block w-full px-4 py-3 border border-slate-200 placeholder-slate-400 text-slate-900 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all sm:text-sm bg-slate-50/50"
+                                placeholder="••••••••"
                             />
                         </div>
                     </div>
 
+                    <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
+                        <p className="text-[10px] text-blue-800 font-medium leading-relaxed">
+                            <span className="font-black uppercase tracking-widest mr-1">Aviso:</span>
+                            Al registrarte, te enviaremos un correo para confirmar tu identidad.
+                            <strong> Es necesario confirmarlo para poder entrar.</strong>
+                        </p>
+                    </div>
+
                     <div>
-                        <button formAction={signup} className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                        <button formAction={signup} className="group relative w-full flex justify-center py-4 px-4 border border-transparent text-xs font-black uppercase tracking-widest rounded-2xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg shadow-blue-500/20 transition-all">
                             Registrarse
                         </button>
                     </div>

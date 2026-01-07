@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, History, Target, Banknote, Settings, LogOut } from 'lucide-react';
+import { Home, History, Target, Banknote, Settings, LogOut, Plus } from 'lucide-react';
 import { signout } from '@/app/login/actions';
 
 const navItems = [
@@ -14,24 +14,45 @@ const navItems = [
     { name: 'Ajustes', href: '/settings', icon: Settings },
 ];
 
+const mobileNavItems = [
+    { name: 'Inicio', href: '/', icon: Home },
+    { name: 'Límites', href: '/budgets', icon: Target },
+    { name: 'Abono', href: '/transactions', icon: Plus, isFab: true },
+    { name: 'Deudas', href: '/debts', icon: Banknote },
+    { name: 'Más', href: '/settings', icon: Settings },
+];
 export const Navigation = () => {
     const pathname = usePathname();
-
+    const isAuthPage = pathname === '/login' || pathname === '/register' || pathname.startsWith('/onboarding');
+    if (isAuthPage) return null;
     return (
         <>
             {/* Mobile Bottom Navigation */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-foreground/[0.05] px-6 py-4 flex justify-between items-center md:hidden z-50">
-                {navItems.map((item) => {
+            <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-foreground/[0.05] px-4 py-3 flex justify-around items-end md:hidden z-50 pb-safe">
+                {mobileNavItems.map((item) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
+
+                    if (item.isFab) {
+                        return (
+                            <Link
+                                key="fab"
+                                href={item.href}
+                                className="relative -top-6 flex flex-col items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/40 active:scale-90 transition-all duration-300"
+                            >
+                                <Icon size={28} strokeWidth={3} />
+                            </Link>
+                        );
+                    }
+
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`flex flex-col items-center space-y-1.5 transition-all duration-300 ${isActive ? 'text-blue-600' : 'text-foreground/30 hover:text-foreground/60'}`}
+                            className={`flex flex-col items-center space-y-1 transition-all duration-300 pb-1 ${isActive ? 'text-blue-600' : 'text-foreground/30 hover:text-foreground/60'}`}
                         >
-                            <Icon size={24} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'drop-shadow-[0_0_8px_rgba(37,99,235,0.4)]' : ''} />
-                            <span className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
+                            <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'drop-shadow-[0_0_8px_rgba(37,99,235,0.4)]' : ''} />
+                            <span className={`text-[8px] font-black uppercase tracking-widest transition-all ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>
                                 {item.name}
                             </span>
                         </Link>

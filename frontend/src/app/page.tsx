@@ -26,15 +26,22 @@ import {
     TrendingDown
 } from 'lucide-react'
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+    const searchParams = await props.searchParams;
+    const code = searchParams.code as string;
+
+    // Emergency redirect if OAuth code lands on root instead of /auth/callback
+    if (code) {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+        redirect(`${baseUrl}/auth/callback?code=${code}`);
+    }
+
     const supabase = await createClient()
 
-    // 1. Auth Check - Using safer approach
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) redirect('/login')
-    const user = session.user
-
-    // 2. Profile & Family Check
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) redirect('/login')
     const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -43,7 +50,6 @@ export default async function DashboardPage() {
 
     if (!profile?.family_id) redirect('/onboarding')
 
-    // 3. Fetch Data in Parallel
     const today = new Date()
     const currentMonth = today.getMonth() + 1
     const currentYear = today.getFullYear()
@@ -60,7 +66,6 @@ export default async function DashboardPage() {
         supabase.from('debts').select('*').eq('family_id', profile.family_id).eq('status', 'active')
     ])
 
-    // 4. Process Accounts Data
     const allAccounts = accountsRes.data || []
     const myAccounts = allAccounts.filter(acc =>
         acc.family_id === profile.family_id &&
@@ -68,12 +73,10 @@ export default async function DashboardPage() {
     )
     const totalBalance = myAccounts.reduce((acc: number, curr: any) => acc + Number(curr.balance), 0)
 
-    // 5. Process Monthly Stats
     const monthlyTxs = monthlyStatsRes.data || []
     const income = monthlyTxs.filter(t => t.type === 'income').reduce((acc, curr) => acc + Number(curr.amount), 0)
     const expense = monthlyTxs.filter(t => t.type === 'expense').reduce((acc, curr) => acc + Number(curr.amount), 0)
 
-    // 6. Process Budgets (Filtering current month/week in JS for safety)
     const allBudgets = budgetsRes.data || []
     const now = new Date();
     const currentBudgets = allBudgets.filter(b => {
@@ -99,85 +102,76 @@ export default async function DashboardPage() {
             })
         } else if (b.period === 'weekly') {
             const startOfWeek = getStartOfWeek(currentWeek, currentYear)
-            const endOfWeek = new Date(startOfWeek)
-            endOfWeek.setDate(startOfWeek.getDate() + 6)
-            endOfWeek.setHours(23, 59, 59, 999)
-
-            relevantTxs = relevantTxs.filter(t => {
-                const txDate = new Date(t.date)
-                return txDate >= startOfWeek && txDate <= endOfWeek
-            })
+            relevantTxs = relevantTxs.filter(t => new Date(t.date) >= startOfWeek)
         }
 
-        const spent = relevantTxs.reduce((acc, t) => acc + Number(t.amount), 0)
-        return { ...b, spent, percent: (spent / b.amount) * 100 }
+        const spent = relevantTxs.reduce((acc, curr) => acc + Number(curr.amount), 0)
+        return { ...b, spent, percent: Math.min((spent / b.amount) * 100, 100) }
     })
 
     const budgetAlerts = currentBudgets.filter(b => b.percent >= 80)
+    const debtToPay = (debtsRes.data || []).filter(d => d.type === 'to_pay').reduce((acc, curr) => acc + (Number(curr.total_amount) - Number(curr.paid_amount)), 0)
+    const debtToReceive = (debtsRes.data || []).filter(d => d.type === 'to_receive').reduce((acc, curr) => acc + (Number(curr.total_amount) - Number(curr.paid_amount)), 0)
 
-    // Debt Totals
-    const activeDebts = debtsRes.data || []
-    const debtToPay = activeDebts.filter(d => d.type === 'to_pay').reduce((acc, d) => acc + Number(d.remaining_amount), 0)
-    const debtToReceive = activeDebts.filter(d => d.type === 'to_receive').reduce((acc, d) => acc + Number(d.remaining_amount), 0)
-
-    // Aggregate Expenses by Category
-    const expensesByCategory: Record<string, number> = {}
-    monthlyTxs
+    const expensesByCategory = monthlyTxs
         .filter(t => t.type === 'expense')
-        .forEach((t: any) => {
-            const catName = t.categories?.name || 'Varios'
-            expensesByCategory[catName] = (expensesByCategory[catName] || 0) + Number(t.amount)
-        })
+        .reduce((acc: any, curr: any) => {
+            const catName = curr.categories?.name || 'Otros'
+            acc[catName] = (acc[catName] || 0) + Number(curr.amount)
+            return acc
+        }, {})
 
     const chartData = Object.entries(expensesByCategory).map(([name, value]) => ({
         name,
-        value,
+        value: Number(value),
         color: ''
     }))
 
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email
 
     return (
-        <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 min-h-screen pb-24">
+        <main className="max-w-6xl mx-auto p-4 md:p-8 pt-10 md:pt-8 space-y-6 md:space-y-10 min-h-screen pb-24">
             <PageHeader
                 title={`Hola, ${displayName?.split(' ')[0]}`}
-                description="Tu resumen financiero familiar está al día."
+                description="Aquí tienes un resumen de tu armonía financiera hoy."
+                showProfile
+                userProfile={profile}
             />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card variant="elevated" className="relative overflow-hidden group border-indigo-500/10">
-                    <div className="absolute top-0 right-0 p-4 text-indigo-500 opacity-20 group-hover:opacity-40 transition-opacity">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+                <Card variant="elevated" className="relative overflow-hidden group bg-indigo-600 dark:bg-indigo-900 shadow-indigo-500/20 border-none">
+                    <div className="absolute top-0 right-0 p-4 text-white opacity-10 group-hover:opacity-20 transition-opacity">
                         <Wallet size={64} strokeWidth={1.5} />
                     </div>
-                    <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[10px] opacity-70">Balance Total</Typography>
-                    <Typography variant="h1" className={`mt-2 tracking-tighter ${totalBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    <Typography variant="small" className="text-white font-black uppercase tracking-widest text-[9px] opacity-60">Balance Total</Typography>
+                    <Typography variant="h1" className="mt-1 tracking-tighter text-white">
                         {formatCurrency(totalBalance)}
                     </Typography>
                 </Card>
                 <Card variant="elevated" className="relative overflow-hidden group border-emerald-500/10">
-                    <div className="absolute top-0 right-0 p-4 text-emerald-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <div className="absolute top-0 right-0 p-4 text-emerald-500 opacity-10 group-hover:opacity-20 transition-opacity">
                         <TrendingUp size={64} strokeWidth={1.5} />
                     </div>
-                    <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[10px] opacity-70">Ingresos (Mes)</Typography>
-                    <Typography variant="h1" className="mt-2 tracking-tighter text-emerald-600 dark:text-emerald-400">
+                    <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[9px] opacity-70">Ingresos (Mes)</Typography>
+                    <Typography variant="h2" className="mt-1 tracking-tighter text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(income)}
                     </Typography>
                 </Card>
                 <Card variant="elevated" className="relative overflow-hidden group border-rose-500/10">
-                    <div className="absolute top-0 right-0 p-4 text-rose-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <div className="absolute top-0 right-0 p-4 text-rose-500 opacity-10 group-hover:opacity-20 transition-opacity">
                         <TrendingDown size={64} strokeWidth={1.5} />
                     </div>
-                    <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[10px] opacity-70">Gastos (Mes)</Typography>
-                    <Typography variant="h1" className="mt-2 tracking-tighter text-rose-600 dark:text-rose-400">
+                    <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[9px] opacity-70">Gastos (Mes)</Typography>
+                    <Typography variant="h2" className="mt-1 tracking-tighter text-rose-600 dark:text-rose-400">
                         {formatCurrency(expense)}
                     </Typography>
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
                 {/* Left Column: Alerts & Charts */}
-                <div className="lg:col-span-8 space-y-8">
+                <div className="lg:col-span-8 space-y-6 md:space-y-10">
                     {/* Alerts Section */}
                     {(budgetAlerts.length > 0 || debtToPay > 0 || debtToReceive > 0) && (
                         <Card variant="glass" className="border-rose-500/20 bg-rose-500/[0.02]">
@@ -222,7 +216,12 @@ export default async function DashboardPage() {
                         <Card variant="elevated">
                             <div className="flex justify-between items-center mb-6">
                                 <Typography variant="h3" className="text-foreground font-black">Estado de Presupuestos</Typography>
-                                <Typography variant="small" className="opacity-50 font-bold uppercase tracking-widest text-[10px]">Actual</Typography>
+                                <Link href="/budgets">
+                                    <Button variant="ghost" size="sm" className="group text-foreground/50 hover:text-blue-600">
+                                        Gestionar
+                                        <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                                    </Button>
+                                </Link>
                             </div>
                             <div className="grid gap-6">
                                 {currentBudgets.map(b => (
@@ -248,12 +247,13 @@ export default async function DashboardPage() {
                                                 {formatCurrency(b.spent)} / {formatCurrency(b.amount)}
                                             </Typography>
                                         </div>
-                                        <div className="h-2 w-full bg-foreground/[0.05] rounded-full overflow-hidden">
+                                        <div className="h-2 w-full bg-foreground/[0.03] rounded-full overflow-hidden">
                                             <div
-                                                className={`h-full rounded-full transition-all duration-1000 ${b.percent >= 100 ? 'bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.4)]' :
-                                                    b.percent >= 80 ? 'bg-orange-500' : 'bg-indigo-500'
+                                                className={`h-full transition-all duration-1000 ${b.percent >= 100 ? 'bg-rose-500' :
+                                                    b.percent >= 80 ? 'bg-orange-500' :
+                                                        'bg-indigo-500'
                                                     }`}
-                                                style={{ width: `${Math.min(b.percent, 100)}%` }}
+                                                style={{ width: `${b.percent}%` }}
                                             />
                                         </div>
                                     </div>
@@ -261,133 +261,62 @@ export default async function DashboardPage() {
                             </div>
                         </Card>
                     )}
+                </div>
 
-                    {/* Recent Activity */}
+                {/* Right Column: Mini Widgets */}
+                <div className="lg:col-span-4 space-y-6 md:space-y-10">
+                    <Card variant="elevated">
+                        <div className="flex justify-between items-center mb-6">
+                            <Typography variant="h3" className="text-foreground font-black">Mis Cuentas</Typography>
+                            <Link href="/accounts">
+                                <Button variant="ghost" size="sm" className="text-foreground/30 hover:text-blue-600">
+                                    Ver todas
+                                </Button>
+                            </Link>
+                        </div>
+                        <div className="space-y-4">
+                            {myAccounts.slice(0, 3).map(acc => (
+                                <div key={acc.id} className="flex justify-between items-center p-4 bg-foreground/[0.02] rounded-2xl border border-foreground/[0.03]">
+                                    <div>
+                                        <Typography variant="body" className="font-bold text-foreground">{acc.name}</Typography>
+                                        <Typography variant="small" className="text-[10px] opacity-40 uppercase font-black">{acc.type === 'joint' ? 'Familiar' : 'Personal'}</Typography>
+                                    </div>
+                                    <Typography variant="body" className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                        {formatCurrency(acc.balance)}
+                                    </Typography>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+
                     <Card variant="elevated">
                         <div className="flex justify-between items-center mb-6">
                             <Typography variant="h3" className="text-foreground font-black">Actividad Reciente</Typography>
                             <Link href="/transactions">
-                                <Button variant="ghost" size="sm" className="group text-foreground/50 hover:text-blue-600">
-                                    Ver Todo
-                                    <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
-                                </Button>
+                                <LucideHistory size={18} className="text-foreground/30 hover:text-blue-600 transition-colors" />
                             </Link>
                         </div>
-                        <div className="overflow-hidden rounded-2xl border border-foreground/[0.03]">
-                            {(recentTxRes.data?.length ?? 0) > 0 ? (
-                                <ul className="divide-y divide-foreground/[0.03]">
-                                    {recentTxRes.data!.map((tx: any) => (
-                                        <li key={tx.id} className="p-4 hover:bg-foreground/[0.01] transition-colors group">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-4">
-                                                    <div className={`p-2.5 rounded-2xl shadow-sm ${tx.type === 'income' ? 'bg-emerald-500/[0.15] text-emerald-600 dark:text-emerald-400 border border-emerald-500/10' : 'bg-rose-500/[0.15] text-rose-600 dark:text-rose-400 border border-rose-500/10'
-                                                        }`}>
-                                                        {tx.type === 'income' ? <ArrowDownCircle size={18} /> : <ArrowUpCircle size={18} />}
-                                                    </div>
-                                                    <div>
-                                                        <Typography variant="body" className="font-bold text-foreground/90">{tx.description}</Typography>
-                                                        <Typography variant="muted" className="text-[10px] font-black uppercase tracking-widest text-foreground/70">
-                                                            {new Date(tx.date).toLocaleDateString()} • {tx.categories?.name || 'Varios'}
-                                                        </Typography>
-                                                    </div>
-                                                </div>
-                                                <Typography variant="body" className={`font-black ${tx.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                                    {tx.type === 'income' ? '+' : '-'} {formatCurrency(tx.amount)}
-                                                </Typography>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="p-12 text-center">
-                                    <Typography variant="body" className="italic opacity-40">No hay actividad reciente.</Typography>
-                                </div>
-                            )}
-                        </div>
-                    </Card>
-                </div>
-
-                {/* Right Column: Actions & Quick Stats */}
-                <div className="lg:col-span-4 space-y-8">
-                    <Card variant="elevated">
-                        <Typography variant="small" className="text-foreground font-black mb-6 uppercase tracking-widest text-[10px]">Acciones Rápidas</Typography>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Link href="/transactions/new" className="col-span-2">
-                                <Button className="w-full bg-blue-600 text-white hover:bg-blue-700 border-none shadow-lg font-black py-4 duration-300">
-                                    <Plus size={20} className="mr-2" strokeWidth={3} />
-                                    Nueva Transacción
-                                </Button>
-                            </Link>
-                            <Link href="/transactions">
-                                <Button variant="secondary" className="w-full px-2 bg-slate-500/10 text-slate-600 dark:text-slate-400 hover:bg-slate-500/20 font-bold duration-300">
-                                    <LucideHistory size={16} className="mr-2" />
-                                    Historial
-                                </Button>
-                            </Link>
-                            <Link href="/accounts">
-                                <Button variant="secondary" className="w-full px-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 font-bold duration-300">
-                                    <CreditCard size={16} className="mr-2" />
-                                    Cuentas
-                                </Button>
-                            </Link>
-                            <Link href="/budgets">
-                                <Button variant="secondary" className="w-full px-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 font-bold duration-300">
-                                    <ShieldCheck size={16} className="mr-2" />
-                                    Límites
-                                </Button>
-                            </Link>
-                            <Link href="/debts">
-                                <Button variant="secondary" className="w-full px-2 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 font-bold duration-300">
-                                    <Banknote size={16} className="mr-2" />
-                                    Deudas
-                                </Button>
-                            </Link>
-
-                            <form action={seedTestData} className="col-span-2 mt-4">
-                                <Button variant="outline" className="w-full border-indigo-500/20 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all font-black py-4">
-                                    ✨ Generar Historial (Mes y Semanas)
-                                </Button>
-                            </form>
-                        </div>
-                    </Card>
-
-                    <Card variant="elevated">
-                        <Typography variant="small" className="text-foreground font-black mb-4 uppercase tracking-widest text-[10px]">Salud Financiera (Mes)</Typography>
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-end">
-                                <div>
-                                    <Typography variant="muted" className="text-xs font-bold text-foreground/70">Balance Neto</Typography>
-                                    <Typography variant="h2" className={`mt-0.5 font-black tracking-tight ${income - expense >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                        {formatCurrency(income - expense)}
+                        <div className="space-y-4">
+                            {(recentTxRes.data || []).map(tx => (
+                                <div key={tx.id} className="flex justify-between items-center p-3 hover:bg-foreground/[0.02] rounded-xl transition-colors">
+                                    <div className="flex items-center space-x-3">
+                                        <div className={`p-2 rounded-lg ${tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                                            {tx.type === 'income' ? <ArrowUpCircle size={16} /> : <ArrowDownCircle size={16} />}
+                                        </div>
+                                        <div>
+                                            <Typography variant="small" className="font-bold text-foreground leading-tight line-clamp-1">{tx.description}</Typography>
+                                            <Typography variant="small" className="text-[9px] opacity-30 uppercase font-black tracking-widest">{new Date(tx.date).toLocaleDateString()}</Typography>
+                                        </div>
+                                    </div>
+                                    <Typography variant="small" className={`font-mono font-bold ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                                     </Typography>
                                 </div>
-                                <div className="text-right">
-                                    <Typography variant="muted" className="text-xs font-bold text-foreground/70">Uso de Ingresos</Typography>
-                                    <Typography variant="body" className="font-black mt-0.5">
-                                        {Math.round((expense / (income || 1)) * 100)}%
-                                    </Typography>
-                                </div>
-                            </div>
-
-                            <div className="w-full bg-foreground/5 h-4 rounded-full overflow-hidden shadow-inner flex">
-                                <div
-                                    className="bg-emerald-500 h-full transition-all duration-1000"
-                                    style={{ width: `${Math.min((income / (income + expense || 1)) * 100, 100)}%` }}
-                                />
-                                <div
-                                    className="bg-rose-500 h-full transition-all duration-1000 opacity-80"
-                                    style={{ width: `${Math.min((expense / (income + expense || 1)) * 100, 100)}%` }}
-                                />
-                            </div>
-
-                            <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter opacity-50">
-                                <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-emerald-500 mr-2" /> Ingresos</div>
-                                <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-rose-500 mr-2" /> Gastos</div>
-                            </div>
+                            ))}
                         </div>
                     </Card>
                 </div>
             </div>
-        </main >
+        </main>
     )
 }

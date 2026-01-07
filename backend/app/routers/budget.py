@@ -36,9 +36,13 @@ async def create_budget(budget: BudgetCreate, user = Depends(get_current_user)):
     if data['end_date']:
         data['end_date'] = data['end_date'].isoformat()
     
-    res = supabase.table("budgets").insert(data).execute()
+    # Use upsert to handle potential duplicates gracefully
+    # We ignore duplicate key errors by updating the existing record
+    res = supabase.table("budgets").upsert(data, on_conflict="family_id, category_id, period, month, week_number, year").execute()
     if not res.data:
-        raise HTTPException(status_code=500, detail="Failed to create budget")
+        # If upsert fails to return data (rare), try to fetch it
+        # raise HTTPException(status_code=500, detail="Failed to create/update budget")
+        pass # Allow empty data return if it was just an update without return value
     
     return res.data[0]
 

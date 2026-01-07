@@ -22,29 +22,36 @@ export default async function LoginPage({
 
                 <form className="mt-8 space-y-6">
                     {next && <input type="hidden" name="next" value={next} />}
-                    <div className="rounded-md shadow-sm -space-y-px">
+
+                    {(await searchParams).error && (
+                        <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold text-center animate-in fade-in slide-in-from-top-2">
+                            {(await searchParams).error}
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
                         <div>
-                            <label htmlFor="email-address" className="sr-only">Correo Electrónico</label>
+                            <label htmlFor="email-address" className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Correo Electrónico</label>
                             <input
                                 id="email-address"
                                 name="email"
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-slate-300 placeholder-slate-500 text-slate-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Correo Electrónico"
+                                className="appearance-none relative block w-full px-4 py-3 border border-slate-200 placeholder-slate-400 text-slate-900 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all sm:text-sm bg-slate-50/50"
+                                placeholder="tu@email.com"
                             />
                         </div>
                         <div>
-                            <label htmlFor="password" className="sr-only">Contraseña</label>
+                            <label htmlFor="password" className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Contraseña</label>
                             <input
                                 id="password"
                                 name="password"
                                 type="password"
                                 autoComplete="current-password"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-slate-300 placeholder-slate-500 text-slate-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Contraseña"
+                                className="appearance-none relative block w-full px-4 py-3 border border-slate-200 placeholder-slate-400 text-slate-900 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all sm:text-sm bg-slate-50/50"
+                                placeholder="••••••••"
                             />
                         </div>
                     </div>

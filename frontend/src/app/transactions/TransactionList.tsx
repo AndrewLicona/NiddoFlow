@@ -156,7 +156,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
     }, [transactions, filter, debtSubFilter]);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6 md:space-y-8">
             {/* Segmentation Tabs */}
             <div className="flex flex-col space-y-4">
                 <div className="flex p-1 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] w-fit mx-auto md:mx-0 overflow-x-auto max-w-full no-scrollbar">
@@ -164,7 +164,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
-                            className={`px-5 py-2.5 rounded-xl text-[10px] whitespace-nowrap font-black uppercase tracking-widest transition-all duration-300 ${filter === f
+                            className={`px-3.5 py-2 rounded-xl text-[10px] whitespace-nowrap font-black uppercase tracking-widest transition-all duration-300 ${filter === f
                                 ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
                                 : 'text-foreground/30 hover:text-foreground/60'
                                 }`}
@@ -182,7 +182,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                             <button
                                 key={sf}
                                 onClick={() => setDebtSubFilter(sf)}
-                                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${debtSubFilter === sf
+                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${debtSubFilter === sf
                                     ? sf === 'income' ? 'bg-emerald-500/10 text-emerald-600' :
                                         sf === 'expense' ? 'bg-rose-500/10 text-rose-600' :
                                             'bg-foreground/10 text-foreground/60'
@@ -207,14 +207,16 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                     </Typography>
                 </Card>
             ) : (
-                <div className="space-y-12">
+                <div className="space-y-8 md:space-y-12">
                     {Object.entries(processedTransactions).map(([date, groupTxs]) => (
-                        <div key={date} className="space-y-4">
+                        <div key={date} className="space-y-3 md:space-y-4">
                             <div className="flex items-center space-x-4 px-2">
-                                <Typography variant="h3" className="text-foreground/30 font-black uppercase tracking-widest text-[10px] whitespace-nowrap">{date}</Typography>
+                                <Typography variant="h3" className="text-foreground/30 font-black uppercase tracking-widest text-[10px]">
+                                    {date}
+                                </Typography>
                                 <div className="h-px w-full bg-foreground/[0.05]" />
                             </div>
-                            <ul className="space-y-4">
+                            <ul className="space-y-3 md:space-y-4">
                                 {groupTxs.map((t) => (
                                     <li key={t.id}>
                                         <Card
@@ -223,58 +225,45 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                             className={`overflow-hidden transition-all duration-300 ${expandedId === t.id ? 'ring-2 ring-blue-500/10 shadow-2xl scale-[1.01]' : 'hover:shadow-lg hover:scale-[1.005]'}`}
                                         >
                                             <div
-                                                className={`px-6 py-5 cursor-pointer select-none ${editingId === t.id ? 'bg-blue-500/[0.02]' : ''}`}
+                                                className={`px-4 md:px-6 py-4 md:py-5 cursor-pointer select-none ${editingId === t.id ? 'bg-blue-500/[0.02]' : ''}`}
                                                 onClick={(e) => toggleExpand(t.id, e)}
                                             >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center">
-                                                        <div className={`flex-shrink-0 h-14 w-14 rounded-2xl shadow-sm flex items-center justify-center border-2 transition-all ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                                <div className="flex items-start md:items-center justify-between gap-3">
+                                                    <div className="flex items-start md:items-center min-w-0 flex-1">
+                                                        <div className={`flex-shrink-0 h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl shadow-sm flex items-center justify-center border-2 transition-all mt-0.5 md:mt-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
                                                             t.type === 'expense' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                                                                 'bg-blue-500/10 text-blue-600 border-blue-500/20'
                                                             }`}>
-                                                            {t.type === 'income' ? <ArrowDownRight size={24} strokeWidth={2.5} /> :
-                                                                t.type === 'expense' ? <ArrowUpLeft size={24} strokeWidth={2.5} /> :
-                                                                    <ArrowLeftRight size={24} strokeWidth={2.5} />}
+                                                            {t.type === 'income' ? <ArrowDownRight size={18} className="md:w-6 md:h-6" strokeWidth={2.5} /> :
+                                                                t.type === 'expense' ? <ArrowUpLeft size={18} className="md:w-6 md:h-6" strokeWidth={2.5} /> :
+                                                                    <ArrowLeftRight size={18} className="md:w-6 md:h-6" strokeWidth={2.5} />}
                                                         </div>
-                                                        <div className="ml-5">
-                                                            <Typography variant="h3" className={`font-black tracking-tight ${editingId === t.id ? 'text-blue-600' : 'text-foreground/90'}`}>
-                                                                {t.description}
-                                                            </Typography>
-                                                            <div className="flex items-center space-x-3 mt-1">
-                                                                <Typography variant="small" className="font-black text-[10px] opacity-40">
-                                                                    {new Date(t.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                        <div className="ml-3 md:ml-5 flex-1 min-w-0">
+                                                            <div className="flex flex-col">
+                                                                <Typography variant="h3" className={`font-black tracking-tight truncate md:text-lg leading-tight ${editingId === t.id ? 'text-blue-600' : 'text-foreground/90'}`}>
+                                                                    {t.description}
                                                                 </Typography>
-                                                                <span className="h-1 w-1 rounded-full bg-foreground/20" />
-                                                                <Typography variant="small" className="font-black text-[10px] opacity-40 uppercase tracking-widest">
-                                                                    {t.account_name}
-                                                                </Typography>
-                                                                {(t.description.includes('[COBRO DEUDA]') || t.description.includes('[PAGO DEUDA]') || t.description.toLowerCase().includes('pago de deuda')) && (
-                                                                    <>
-                                                                        <span className="h-1 w-1 rounded-full bg-foreground/20" />
-                                                                        <div className={`${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'} px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest`}>
-                                                                            {t.type === 'income' ? 'Cobro Deuda' : 'Pago Deuda'}
-                                                                        </div>
-                                                                    </>
-                                                                )}
-                                                                {t.description.includes('[PRESTAMO RECIBIDO]') && (
-                                                                    <>
-                                                                        <span className="h-1 w-1 rounded-full bg-foreground/20" />
-                                                                        <div className="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Préstamo Recibido</div>
-                                                                    </>
-                                                                )}
-                                                                {t.description.includes('[PRESTAMO OTORGADO]') && (
-                                                                    <>
-                                                                        <span className="h-1 w-1 rounded-full bg-foreground/20" />
-                                                                        <div className="bg-rose-500/10 text-rose-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Préstamo Otorgado</div>
-                                                                    </>
-                                                                )}
+                                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                                                                    <Typography variant="small" className="font-black text-[9px] md:text-[11px] opacity-40 whitespace-nowrap">
+                                                                        {new Date(t.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                                                    </Typography>
+                                                                    <span className="hidden md:block h-1 w-1 rounded-full bg-foreground/20 flex-shrink-0" />
+                                                                    <Typography variant="small" className="font-black text-[9px] md:text-[11px] opacity-40 uppercase tracking-widest truncate max-w-[120px] md:max-w-none">
+                                                                        {t.account_name}
+                                                                    </Typography>
+                                                                    {(t.description.includes('[COBRO DEUDA]') || t.description.includes('[PAGO DEUDA]') || t.description.toLowerCase().includes('pago de deuda')) && (
+                                                                        <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0">
+                                                                            <ArrowLeftRight size={8} className="mr-1 md:w-2.5 md:h-2.5" /> Deuda
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right flex items-center space-x-6">
+                                                    <div className="text-right flex flex-col items-end md:flex-row md:items-center gap-1 md:gap-6 flex-shrink-0">
                                                         <Typography
-                                                            variant="h2"
-                                                            className={`font-black tracking-tighter ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' :
+                                                            variant="h3"
+                                                            className={`font-black tracking-tighter text-base md:text-2xl ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' :
                                                                 t.type === 'expense' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
                                                                 }`}
                                                         >
@@ -282,7 +271,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                         </Typography>
                                                         <ChevronDown
                                                             size={20}
-                                                            className={`text-foreground/20 transition-all duration-300 ${expandedId === t.id || editingId === t.id ? 'rotate-180 text-blue-500 scale-125' : 'group-hover:text-foreground/40'}`}
+                                                            className={`text-foreground/20 transition-all duration-300 md:w-5 md:h-5 ${expandedId === t.id || editingId === t.id ? 'rotate-180 text-blue-500 scale-125' : 'group-hover:text-foreground/40'}`}
                                                         />
                                                     </div>
                                                 </div>
