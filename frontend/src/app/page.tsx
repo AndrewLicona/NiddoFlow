@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { signout } from './login/actions'
 import { seedTestData } from './seed/actions'
-import DashboardCharts from './dashboard/DashboardCharts'
+import ChartCarousel from './dashboard/components/ChartCarousel'
+import SmartFeed from './dashboard/components/SmartFeed'
 import { formatCurrency } from '@/utils/format'
+import { subMonths, startOfMonth } from 'date-fns'
 import { getWeekNumber, getStartOfWeek } from '@/utils/date'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { Button } from '@/components/ui/atoms/Button'
@@ -16,14 +18,15 @@ import {
     CreditCard,
     ShieldCheck,
     Banknote,
-    AlertCircle,
     ArrowUpCircle,
     ArrowDownCircle,
     LogOut,
     Plus,
     ChevronRight,
+
     TrendingUp,
-    TrendingDown
+    TrendingDown,
+    FileText
 } from 'lucide-react'
 
 export default async function DashboardPage(props: {
@@ -55,16 +58,24 @@ export default async function DashboardPage(props: {
     const currentYear = today.getFullYear()
     const currentWeek = getWeekNumber(today)
 
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
+    const startOfMonthISO = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
+    const endOfMonthISO = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
 
-    const [accountsRes, recentTxRes, monthlyStatsRes, budgetsRes, debtsRes] = await Promise.all([
+    // Fetch 6 months of history for trends
+    const historyStart = startOfMonth(subMonths(today, 6)).toISOString()
+
+    const [accountsRes, recentTxRes, monthlyStatsRes, budgetsRes, debtsRes, historyRes, profilesRes] = await Promise.all([
         supabase.from('accounts').select('*').or(`family_id.eq.${profile.family_id},user_id.eq.${user.id}`),
         supabase.from('transactions').select('*, categories(name, icon)').eq('family_id', profile.family_id).order('date', { ascending: false }).limit(5),
-        supabase.from('transactions').select('amount, type, category_id, date, categories(name)').eq('family_id', profile.family_id).gte('date', startOfMonth).lte('date', endOfMonth),
+        supabase.from('transactions').select('amount, type, category_id, date, categories(name)').eq('family_id', profile.family_id).gte('date', startOfMonthISO).lte('date', endOfMonthISO),
         supabase.from('budgets').select('*, categories(name)').eq('family_id', profile.family_id).eq('year', currentYear),
-        supabase.from('debts').select('*').eq('family_id', profile.family_id).eq('status', 'active')
+        supabase.from('debts').select('*').eq('family_id', profile.family_id).eq('status', 'active'),
+        supabase.from('transactions').select('*, categories(name)').eq('family_id', profile.family_id).gte('date', historyStart).order('date', { ascending: true }),
+        supabase.from('profiles').select('id, full_name').eq('family_id', profile.family_id)
     ])
+
+    const historyTxs = historyRes.data || []
+    const familyProfiles = profilesRes.data || []
 
     const allAccounts = accountsRes.data || []
     const myAccounts = allAccounts.filter(acc =>
@@ -136,11 +147,25 @@ export default async function DashboardPage(props: {
                 description="Aquí tienes un resumen de tu armonía financiera hoy."
                 showProfile
                 userProfile={profile}
+                actions={
+                    <div className="flex space-x-2">
+                        <Link href="/reports">
+                            <Button variant="outline" size="sm" className="rounded-full h-10 w-10 p-0 border-foreground/10 text-foreground/60 hover:text-blue-600 hover:border-blue-600/30">
+                                <FileText size={20} />
+                            </Button>
+                        </Link>
+                        <Link href="/transactions/new">
+                            <Button variant="primary" size="sm" className="rounded-full h-10 w-10 p-0 shadow-xl shadow-blue-500/30">
+                                <Plus size={24} />
+                            </Button>
+                        </Link>
+                    </div>
+                }
             />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-                <Card variant="elevated" className="relative overflow-hidden group bg-indigo-600 dark:bg-indigo-900 shadow-indigo-500/20 border-none">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
+                <Card variant="elevated" className="col-span-2 md:col-span-1 relative overflow-hidden group bg-indigo-600 dark:bg-indigo-900 shadow-indigo-500/20 border-none">
                     <div className="absolute top-0 right-0 p-4 text-white opacity-10 group-hover:opacity-20 transition-opacity">
                         <Wallet size={64} strokeWidth={1.5} />
                     </div>
@@ -172,44 +197,22 @@ export default async function DashboardPage(props: {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
                 {/* Left Column: Alerts & Charts */}
                 <div className="lg:col-span-8 space-y-6 md:space-y-10">
-                    {/* Alerts Section */}
-                    {(budgetAlerts.length > 0 || debtToPay > 0 || debtToReceive > 0) && (
-                        <Card variant="glass" className="border-rose-500/20 bg-rose-500/[0.02]">
-                            <div className="flex items-center space-x-2 mb-4">
-                                <AlertCircle size={20} className="text-rose-500" />
-                                <Typography variant="h3" className="text-rose-950 dark:text-rose-50">Alertas Críticas</Typography>
-                            </div>
-                            <div className="space-y-3">
-                                {debtToPay > 0 && (
-                                    <div className="flex items-center text-rose-700 bg-white/50 dark:bg-slate-800/50 p-4 rounded-2xl border border-rose-100 dark:border-rose-500/20 shadow-sm">
-                                        <Typography variant="body" className="font-bold text-rose-800 dark:text-rose-200">
-                                            Tienes compromisos por pagar: <strong>{formatCurrency(debtToPay)}</strong>.
-                                        </Typography>
-                                    </div>
-                                )}
-                                {budgetAlerts.map(b => (
-                                    <div key={b.id} className="flex items-center text-orange-700 bg-white/50 dark:bg-slate-800/50 p-4 rounded-2xl border border-orange-100 dark:border-orange-500/20 shadow-sm">
-                                        <Typography variant="body" className="font-bold text-orange-800 dark:text-orange-200">
-                                            Presupuesto {b.period === 'weekly' ? 'semanal' : 'mensual'} {b.percent >= 100 ? 'excedido' : 'al límite'} en <strong>{(b.categories as any)?.name || 'General'}</strong>.
-                                        </Typography>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    )}
 
-                    <Card variant="elevated">
-                        <div className="flex justify-between items-center mb-6">
-                            <Typography variant="h3" className="text-foreground font-black">Distribución de Gastos</Typography>
-                            <Link href="/dashboard/charts">
-                                <Button variant="ghost" size="sm" className="group text-foreground/50 hover:text-blue-600">
-                                    Detalles
-                                    <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
-                                </Button>
-                            </Link>
-                        </div>
-                        <DashboardCharts data={chartData} />
-                    </Card>
+                    {/* Smart Feed (Alerts + AI) */}
+                    <SmartFeed
+                        budgetAlerts={budgetAlerts}
+                        debtToPay={debtToPay}
+                        debtToReceive={debtToReceive}
+                        transactions={historyTxs}
+                        budgets={currentBudgets}
+                    />
+
+                    {/* Carousel Section */}
+                    <ChartCarousel
+                        transactions={historyTxs}
+                        accounts={allAccounts}
+                        profiles={familyProfiles}
+                    />
 
                     {/* New Budgets Section */}
                     {currentBudgets.length > 0 && (

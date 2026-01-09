@@ -27,6 +27,7 @@ export async function createTransaction(formData: FormData) {
         category_id: formData.get('categoryId') || null,
         account_id: formData.get('accountId'),
         date: formData.get('date'), // "YYYY-MM-DD"
+        receipt_url: formData.get('receipt_url') || null,
     }
 
     // Append time to date to make it valid ISO if simple date.

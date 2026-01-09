@@ -32,7 +32,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
         transactions
             .filter(t => t.type === 'expense')
             .forEach(t => {
-                const catName = (t as any).categories?.name || 'Varios';
+                const catName = (t as any).category_name || (t as any).categories?.name || 'Varios';
                 map[catName] = (map[catName] || 0) + Number(t.amount);
             });
 

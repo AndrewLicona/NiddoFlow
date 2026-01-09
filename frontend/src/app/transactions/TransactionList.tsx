@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Card } from '@/components/ui/molecules/Card';
@@ -17,7 +18,9 @@ import {
     Save,
     X,
     CheckCircle2,
-    History as LucideHistory
+    History as LucideHistory,
+    Paperclip,
+    Loader2
 } from 'lucide-react';
 import { deleteTransaction, updateTransaction } from './actions';
 
@@ -32,6 +35,7 @@ interface Transaction {
     category_name?: string;
     account_name?: string;
     user_name?: string;
+    receipt_url?: string;
 }
 
 interface Category {
@@ -60,6 +64,42 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
     const [isUpdating, setIsUpdating] = useState(false);
     const [filter, setFilter] = useState<'all' | 'income' | 'expense' | 'debts'>('all');
     const [debtSubFilter, setDebtSubFilter] = useState<'all' | 'income' | 'expense'>('all');
+    const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+    const uploadReceipt = async (file: File) => {
+        setUploadingReceipt(true);
+        try {
+            const supabase = createClient();
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('receipts')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage.from('receipts').getPublicUrl(filePath);
+            return data.publicUrl;
+        } catch (error) {
+            console.error('Error uploading receipt:', error);
+            alert('Error al subir el comprobante.');
+            return null;
+        } finally {
+            setUploadingReceipt(false);
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+
+        const publicUrl = await uploadReceipt(file);
+        if (publicUrl) {
+            setEditData(prev => ({ ...prev, receipt_url: publicUrl }));
+        }
+    };
 
     const toggleExpand = (id: string, e: React.MouseEvent) => {
         if ((e.target as HTMLElement).closest('button')) return;
@@ -91,7 +131,8 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
             type: t.type,
             category_id: t.category_id,
             account_id: t.account_id,
-            date: t.date.split('T')[0]
+            date: t.date, // Keep full ISO string for datetime-local editing
+            receipt_url: t.receipt_url,
         });
     };
 
@@ -319,11 +360,40 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                                                 </InputField>
                                                                 <InputField
-                                                                    label="Fecha"
-                                                                    type="date"
-                                                                    value={editData.date}
-                                                                    onChange={e => setEditData({ ...editData, date: e.target.value })}
+                                                                    label="Fecha y Hora"
+                                                                    type="datetime-local"
+                                                                    // Format ISO string to YYYY-MM-DDTHH:mm for input
+                                                                    value={editData.date ? new Date(editData.date).toLocaleTimeString('en-CA', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', 'T') : ''}
+                                                                    onChange={e => {
+                                                                        // Convert back to ISO string on change
+                                                                        const date = new Date(e.target.value);
+                                                                        setEditData({ ...editData, date: date.toISOString() });
+                                                                    }}
                                                                 />
+
+                                                                <div className="md:col-span-3 pt-2">
+                                                                    <label className="block text-sm font-bold text-foreground mb-2">Comprobante</label>
+                                                                    <div className="flex items-center space-x-4">
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="file"
+                                                                                accept="image/*,application/pdf"
+                                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                                onChange={handleFileChange}
+                                                                                disabled={uploadingReceipt}
+                                                                            />
+                                                                            <Button variant="outline" size="sm" type="button" disabled={uploadingReceipt}>
+                                                                                {uploadingReceipt ? <Loader2 size={14} className="animate-spin mr-2" /> : <Paperclip size={14} className="mr-2" />}
+                                                                                {uploadingReceipt ? 'Subiendo...' : 'Cambiar/Subir Recibo'}
+                                                                            </Button>
+                                                                        </div>
+                                                                        {editData.receipt_url && (
+                                                                            <div className="text-xs text-blue-600 truncate max-w-[200px] flex items-center">
+                                                                                <CheckCircle2 size={12} className="mr-1" /> Recibo adjunto
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
 
                                                                 <div className="md:col-span-3 flex justify-end space-x-4 pt-6">
                                                                     <Button variant="ghost" size="sm" onClick={() => setEditingId(null)} className="text-foreground/40">
@@ -358,6 +428,15 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                             <Typography variant="body" className="font-black text-[10px] uppercase tracking-widest">Confirmada</Typography>
                                                                         </div>
                                                                     </div>
+                                                                    {t.receipt_url && (
+                                                                        <div className="space-y-1">
+                                                                            <Typography variant="small" className="opacity-30 font-black uppercase tracking-widest text-[10px]">Comprobante</Typography>
+                                                                            <a href={t.receipt_url} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-bold text-xs group">
+                                                                                <Paperclip size={14} className="group-hover:scale-110 transition-transform" />
+                                                                                <span>Ver Recibo</span>
+                                                                            </a>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <div className="flex justify-end space-x-3">
                                                                     <Button variant="ghost" size="sm" className="text-foreground/40 hover:text-blue-600 hover:bg-blue-50/50 group transition-all rounded-xl" onClick={() => startEditing(t)}>

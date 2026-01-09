@@ -19,7 +19,7 @@ const formatCurrency = (value: number) => {
     }).format(value)
 }
 
-export default function DashboardCharts({ data }: { data: ChartData[] }) {
+export default function ExpenseDistributionChart({ data }: { data: ChartData[] }) {
     if (data.length === 0) {
         return (
             <div className="flex h-64 items-center justify-center text-foreground/30">

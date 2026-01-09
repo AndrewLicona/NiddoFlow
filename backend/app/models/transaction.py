@@ -10,6 +10,7 @@ class TransactionBase(BaseModel):
     date: datetime
     category_id: Optional[UUID] = None
     account_id: UUID
+    receipt_url: Optional[str] = None
 
 class TransactionCreate(TransactionBase):
     pass
@@ -21,6 +22,7 @@ class TransactionUpdate(BaseModel):
     date: Optional[datetime] = None
     category_id: Optional[UUID] = None
     account_id: Optional[UUID] = None
+    receipt_url: Optional[str] = None
 
 class TransactionResponse(TransactionBase):
     id: UUID

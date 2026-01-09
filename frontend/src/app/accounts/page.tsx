@@ -76,16 +76,7 @@ export default async function AccountsPage() {
                             {formatCurrency(account.balance)}
                         </Typography>
 
-                        <div className="mt-8 flex justify-end space-x-2 pt-4 border-t border-foreground/[0.03]">
-                            <Button variant="ghost" size="sm" className="text-foreground/50 hover:text-blue-600 transition-colors">
-                                <ExternalLink size={14} className="mr-2" />
-                                Detalles
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-foreground/50 hover:text-indigo-600 transition-colors">
-                                <Edit2 size={14} className="mr-2" />
-                                Editar
-                            </Button>
-                        </div>
+
                     </Card>
                 ))}
 
