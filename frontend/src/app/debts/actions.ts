@@ -2,6 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { getAuthHeader } from '@/utils/auth-header'
 
 export async function payDebt(formData: {
     debtId: string;
@@ -83,6 +85,55 @@ export async function payDebt(formData: {
     }
 
     revalidatePath('/debts')
-    revalidatePath('/')
+    revalidatePath('/', 'layout')
     return { success: true }
+}
+
+const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
+
+export async function createDebt(formData: FormData) {
+    const headers = await getAuthHeader()
+    if (!headers) redirect('/login')
+
+    const data = {
+        description: formData.get('description'),
+        total_amount: parseFloat(formData.get('total_amount') as string),
+        remaining_amount: parseFloat(formData.get('total_amount') as string),
+        type: formData.get('type'),
+        category_id: formData.get('category_id') || null,
+        account_id: formData.get('account_id') || null,
+        due_date: formData.get('due_date') || null
+    };
+
+    const res = await fetch(`${NEXT_PUBLIC_API_URL}/debts/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+    });
+
+    if (!res.ok) {
+        console.error('Failed to create debt', await res.text());
+        throw new Error('Failed to create debt');
+    }
+
+    revalidatePath('/debts')
+    revalidatePath('/', 'layout')
+}
+
+export async function deleteDebt(debtId: string) {
+    const headers = await getAuthHeader()
+    if (!headers) redirect('/login')
+
+    const res = await fetch(`${NEXT_PUBLIC_API_URL}/debts/${debtId}`, {
+        method: 'DELETE',
+        headers
+    });
+
+    if (!res.ok) {
+        console.error('Failed to delete debt', await res.text());
+        throw new Error('Failed to delete debt');
+    }
+
+    revalidatePath('/debts')
+    revalidatePath('/', 'layout')
 }

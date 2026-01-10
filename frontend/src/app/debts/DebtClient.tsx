@@ -6,10 +6,10 @@ import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle, Paperclip, Loader2, X } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle, Paperclip, Loader2, X, Save } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-
-import { payDebt } from './actions';
+import { payDebt, createDebt, deleteDebt } from './actions';
+import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
 
 interface Debt {
     id: string;
@@ -46,6 +46,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export default function DebtClient({ initialDebts, accounts, categories, token }: Props) {
     const [debts, setDebts] = useState<Debt[]>(initialDebts);
+
+    useEffect(() => {
+        setDebts(initialDebts);
+    }, [initialDebts]);
     const [isCreating, setIsCreating] = useState(false);
     const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
     const [paymentData, setPaymentData] = useState({
@@ -129,68 +133,33 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
         return { toPay, toReceive };
     }, [debts]);
 
-    const handleCreateDebt = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreateDebt = async (formData: FormData) => {
         try {
-            const res = await fetch(`${API_URL}/debts/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    ...newDebt,
-                    total_amount: parseFloat(newDebt.total_amount),
-                    remaining_amount: parseFloat(newDebt.total_amount),
-                    category_id: newDebt.category_id || null,
-                    account_id: newDebt.account_id || null,
-                    due_date: newDebt.due_date || null
-                })
-            });
-
-            if (res.ok) {
-                const created = await res.json();
-                setDebts([created, ...debts]);
-                setIsCreating(false);
-                setNewDebt({ description: '', total_amount: '', type: 'to_pay', category_id: '', account_id: '', due_date: '' });
-            }
+            await createDebt(formData);
+            setIsCreating(false);
+            setNewDebt({ description: '', total_amount: '', type: 'to_pay', category_id: '', account_id: '', due_date: '' });
         } catch (error) {
             console.error('Error creating debt:', error);
         }
     };
 
-    const handleRecordPayment = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleRecordPayment = async (formData: FormData) => {
         if (!payingDebt) return;
-
         try {
-            const amount = parseFloat(paymentData.amount);
+            const amountValue = formData.get('amount') as string;
+            const amount = parseFloat(amountValue);
+
             const result = await payDebt({
                 debtId: payingDebt.id,
-                accountId: paymentData.accountId,
-                categoryId: paymentData.categoryId,
+                accountId: formData.get('accountId') as string,
+                categoryId: formData.get('categoryId') as string,
                 amount: amount,
-                description: paymentData.description || `Pago de deuda: ${payingDebt.description}`,
+                description: (formData.get('description') as string) || `Pago de deuda: ${payingDebt.description}`,
                 type: payingDebt.type,
                 receiptUrl: receiptUrl
             });
 
             if (result.success) {
-                // Optimistic update or just wait for revalidation?
-                // Since it's a server action with revalidatePath, 
-                // but we have local state, let's update local state too.
-                const updatedDebts = debts.map(d => {
-                    if (d.id === payingDebt.id) {
-                        const newRemaining = Math.max(0, d.remaining_amount - amount);
-                        return {
-                            ...d,
-                            remaining_amount: newRemaining,
-                            status: newRemaining <= 0 ? 'paid' : 'active'
-                        } as Debt;
-                    }
-                    return d;
-                });
-                setDebts(updatedDebts);
                 setPayingDebt(null);
                 setPaymentData({
                     amount: '',
@@ -206,16 +175,9 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
     };
 
     const handleDeleteDebt = async (id: string) => {
+        if (!confirm('¿Estás seguro de eliminar este registro?')) return;
         try {
-            const res = await fetch(`${API_URL}/debts/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (res.ok) {
-                setDebts(debts.filter(d => d.id !== id));
-            }
+            await deleteDebt(id);
         } catch (error) {
             console.error('Error deleting debt:', error);
         }
@@ -266,12 +228,13 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                         </div>
                         <Typography variant="h3">Nuevo Registro Financiero</Typography>
                     </div>
-                    <form onSubmit={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <form action={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="md:col-span-2">
                             <InputField
                                 label="¿Qué es este registro?"
                                 placeholder="Ej: Préstamo de Juan, Deuda de servicios..."
                                 value={newDebt.description}
+                                name="description"
                                 onChange={(e) => setNewDebt({ ...newDebt, description: e.target.value })}
                                 required
                             />
@@ -281,6 +244,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             type="number"
                             placeholder="0.00"
                             value={newDebt.total_amount}
+                            name="total_amount"
                             onChange={(e) => setNewDebt({ ...newDebt, total_amount: e.target.value })}
                             required
                         />
@@ -288,6 +252,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             label="Naturaleza"
                             as="select"
                             value={newDebt.type}
+                            name="type"
                             onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as 'to_pay' | 'to_receive' })}
                         >
                             <option value="to_pay">Debio pagar (Egreso pendiente)</option>
@@ -297,6 +262,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             label="Categoría (Opcional)"
                             as="select"
                             value={newDebt.category_id}
+                            name="category_id"
                             onChange={(e) => setNewDebt({ ...newDebt, category_id: e.target.value })}
                         >
                             <option value="">Automática (Préstamos)</option>
@@ -311,6 +277,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             label="Cuenta del Movimiento (Opcional)"
                             as="select"
                             value={newDebt.account_id}
+                            name="account_id"
                             onChange={(e) => setNewDebt({ ...newDebt, account_id: e.target.value })}
                         >
                             <option value="">Ninguna (No crea transacción)</option>
@@ -322,15 +289,16 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             label="Fecha Límite (Opcional)"
                             type="date"
                             value={newDebt.due_date}
+                            name="due_date"
                             onChange={(e) => setNewDebt({ ...newDebt, due_date: e.target.value })}
                         />
                         <div className="flex justify-end space-x-4 md:col-span-2 pt-4">
                             <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-foreground/40 hover:text-foreground">
                                 Cancelar
                             </Button>
-                            <Button type="submit" className="shadow-lg shadow-indigo-500/20 px-8">
+                            <SubmitButton icon={<Save size={18} />} className="shadow-lg shadow-indigo-500/20 px-8">
                                 Registrar Ahora
-                            </Button>
+                            </SubmitButton>
                         </div>
                     </form>
                 </Card>
@@ -351,12 +319,13 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                 <Typography variant="small" className="opacity-50">Deuda: {payingDebt.description}</Typography>
                             </div>
                         </div>
-                        <form onSubmit={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                        <form action={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
                             <InputField
                                 label="Monto del Pago"
                                 type="number"
                                 placeholder="0.00"
                                 value={paymentData.amount}
+                                name="amount"
                                 onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
                                 required
                             />
@@ -364,6 +333,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                 label="Cuenta de Origen/Destino"
                                 as="select"
                                 value={paymentData.accountId}
+                                name="accountId"
                                 onChange={(e) => setPaymentData({ ...paymentData, accountId: e.target.value })}
                                 required
                                 disabled={!!payingDebt.account_id}
@@ -383,6 +353,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                 label="Categoría (Opcional)"
                                 as="select"
                                 value={paymentData.categoryId}
+                                name="categoryId"
                                 onChange={(e) => setPaymentData({ ...paymentData, categoryId: e.target.value })}
                             >
                                 <option value="">Automática (Abonos/Pagos)</option>
@@ -398,6 +369,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                     label="Descripción (Opcional)"
                                     placeholder="Ej: Abono quincenal..."
                                     value={paymentData.description}
+                                    name="description"
                                     onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
                                 />
                             </div>
@@ -471,9 +443,9 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                 <Button type="button" variant="ghost" onClick={() => setPayingDebt(null)} className="text-foreground/40 hover:text-foreground">
                                     Cancelar
                                 </Button>
-                                <Button type="submit" variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
+                                <SubmitButton icon={<CheckCircle size={18} />} variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
                                     Confirmar Pago
-                                </Button>
+                                </SubmitButton>
                             </div>
                         </form>
                     </Card>

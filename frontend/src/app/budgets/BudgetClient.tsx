@@ -7,8 +7,10 @@ import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
+import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar, Save } from 'lucide-react';
 import { getWeekNumber, getStartOfWeek } from '@/utils/date';
+import { createBudget, deleteBudget } from './actions';
+import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
 
 interface Budget {
     id: string;
@@ -51,6 +53,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export default function BudgetClient({ initialBudgets, categories, transactions, token, userId }: Props) {
     const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
+
+    // Sync state with props when server data revalidates
+    React.useEffect(() => {
+        setBudgets(initialBudgets);
+    }, [initialBudgets]);
     const [isCreating, setIsCreating] = useState(false);
     const [scopeFilter, setScopeFilter] = useState<'all' | 'personal' | 'family'>('all');
     const [newBudget, setNewBudget] = useState({
@@ -174,58 +181,30 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         });
     }, [filteredBudgets, categories, transactions]);
 
-    const handleCreateBudget = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreateBudget = async (formData: FormData) => {
         try {
-            const user_id = newBudget.scope === 'personal' ? userId : null;
-
-            const res = await fetch(`${API_URL}/budgets/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    ...newBudget,
-                    amount: parseFloat(newBudget.amount),
-                    category_id: newBudget.category_id || null,
-                    user_id
-                })
+            await createBudget(formData);
+            setIsCreating(false);
+            setNewBudget({
+                category_id: '',
+                amount: '',
+                period: 'monthly',
+                month: new Date().getMonth() + 1,
+                week_number: getWeekNumber(new Date()),
+                year: new Date().getFullYear(),
+                start_date: '',
+                end_date: '',
+                scope: 'family'
             });
-
-            if (res.ok) {
-                const created = await res.json();
-                setBudgets([...budgets, created]);
-                setIsCreating(false);
-                setScopeFilter(user_id ? 'personal' : 'family');
-                setNewBudget({
-                    category_id: '',
-                    amount: '',
-                    period: 'monthly',
-                    month: new Date().getMonth() + 1,
-                    week_number: getWeekNumber(new Date()),
-                    year: new Date().getFullYear(),
-                    start_date: '',
-                    end_date: '',
-                    scope: 'family'
-                });
-            }
         } catch (error) {
             console.error('Error creating budget:', error);
         }
     };
 
     const handleDeleteBudget = async (id: string) => {
+        if (!confirm('¿Estás seguro de eliminar este presupuesto?')) return;
         try {
-            const res = await fetch(`${API_URL}/budgets/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (res.ok) {
-                setBudgets(budgets.filter(b => b.id !== id));
-            }
+            await deleteBudget(id);
         } catch (error) {
             console.error('Error deleting budget:', error);
         }
@@ -276,7 +255,9 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                         </div>
                         <Typography variant="h3">Definir Límite de Gasto</Typography>
                     </div>
-                    <form onSubmit={handleCreateBudget} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <form action={handleCreateBudget} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Hidden inputs for non-standard form fields */}
+                        <input type="hidden" name="user_id" value={newBudget.scope === 'personal' ? userId : 'null'} />
                         <div className="md:col-span-2 flex justify-center pb-4">
                             <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-full md:w-auto">
                                 <button
@@ -300,6 +281,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Categoría"
                             as="select"
                             value={newBudget.category_id}
+                            name="category_id"
                             onChange={(e) => setNewBudget({ ...newBudget, category_id: e.target.value })}
                         >
                             <option value="">Selecciona una categoría</option>
@@ -312,6 +294,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             type="number"
                             placeholder="0.00"
                             value={newBudget.amount}
+                            name="amount"
                             onChange={(e) => setNewBudget({ ...newBudget, amount: e.target.value })}
                             required
                         />
@@ -319,6 +302,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Frecuencia"
                             as="select"
                             value={newBudget.period}
+                            name="period"
                             onChange={(e) => handleBudgetChange({ period: e.target.value as 'weekly' | 'biweekly' | 'monthly' | 'custom' })}
                         >
                             <option value="monthly">Mensual</option>
@@ -331,6 +315,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Mes Objetivo"
                             as="select"
                             value={newBudget.month}
+                            name="month"
                             onChange={(e) => handleBudgetChange({ month: parseInt(e.target.value) })}
                         >
                             {Array.from({ length: 12 }, (_, i) => (
@@ -344,6 +329,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Año"
                             type="number"
                             value={newBudget.year}
+                            name="year"
                             onChange={(e) => handleBudgetChange({ year: parseInt(e.target.value) })}
                         />
 
@@ -352,6 +338,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                 label="Fecha Inicio"
                                 type="date"
                                 value={newBudget.start_date}
+                                name="start_date"
                                 onChange={(e) => setNewBudget({ ...newBudget, start_date: e.target.value })}
                                 required
                             />
@@ -361,6 +348,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                 label="Fecha Fin"
                                 type="date"
                                 value={newBudget.end_date}
+                                name="end_date"
                                 onChange={(e) => setNewBudget({ ...newBudget, end_date: e.target.value })}
                                 required
                             />
@@ -370,9 +358,9 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-foreground/40 hover:text-foreground">
                                 Cancelar
                             </Button>
-                            <Button type="submit" className="shadow-lg shadow-blue-500/20 px-8">
+                            <SubmitButton icon={<Save size={18} />} className="shadow-lg shadow-blue-500/20 px-8">
                                 Crear Ahora
-                            </Button>
+                            </SubmitButton>
                         </div>
                     </form>
                 </Card>
