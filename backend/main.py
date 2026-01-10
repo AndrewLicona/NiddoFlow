@@ -14,6 +14,7 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://192.168.100.17:3000",
+    "https://niddoflow.andrewlamaquina.my"
 ]
 
 app.add_middleware(
@@ -34,3 +35,7 @@ app.include_router(debt_router.router)
 @app.get("/")
 def read_root():
     return {"message": "NiddoFlow Backend is running!"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
