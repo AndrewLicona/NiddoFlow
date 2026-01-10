@@ -17,12 +17,21 @@ export const InputField = ({
 }: InputFieldProps) => {
     const inputStyles = `w-full px-4 py-3 rounded-xl border bg-card focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none ${error ? 'border-rose-500' : 'border-foreground/10'}`;
 
+    const commonProps = {
+        className: `${inputStyles} ${className}`,
+        ...props
+    };
+
     return (
         <div className="space-y-1.5 w-full">
             {label && <Typography variant="small" className="ml-1 text-foreground/60">{label}</Typography>}
-            <Component className={`${inputStyles} ${className}`} {...(props as any)}>
-                {children}
-            </Component>
+            {Component === 'select' ? (
+                <select {...(commonProps as React.SelectHTMLAttributes<HTMLSelectElement>)}>
+                    {children}
+                </select>
+            ) : (
+                <input {...(commonProps as React.InputHTMLAttributes<HTMLInputElement>)} />
+            )}
             {error && <Typography variant="muted" className="text-red-500 ml-1">{error}</Typography>}
         </div>
     );

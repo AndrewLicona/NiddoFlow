@@ -15,9 +15,9 @@ import {
 interface Transaction {
     id: string;
     amount: number;
-    category: string;
+    category?: string;
     date: string; // ISO string
-    type: 'income' | 'expense';
+    type: 'income' | 'expense' | 'transfer';
 }
 
 interface Props {

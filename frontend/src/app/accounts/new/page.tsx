@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { createAccount } from '../actions'
 import { PageHeader } from '@/components/ui/molecules/PageHeader';
 import { Card } from '@/components/ui/molecules/Card';
-import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
 

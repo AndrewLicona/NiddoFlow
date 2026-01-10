@@ -1,6 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import SettingsForm from './SettingsForm'
 import { PageHeader } from '@/components/ui/molecules/PageHeader';
 

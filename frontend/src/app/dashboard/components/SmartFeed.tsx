@@ -1,22 +1,21 @@
 'use client'
 
-import { Card } from '@/components/ui/molecules/Card'
 import { Typography } from '@/components/ui/atoms/Typography'
-import { AlertCircle, Brain, TrendingUp, TrendingDown, PieChart, AlertTriangle, Sparkles, Lightbulb, PiggyBank, CalendarClock, Activity, Info } from 'lucide-react'
+import { AlertCircle, Brain, TrendingUp, TrendingDown, PieChart, AlertTriangle, Sparkles, Lightbulb, PiggyBank, CalendarClock, Activity } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { useMemo } from 'react'
-import { generateInsights, Insight } from '@/utils/analytics'
+import { generateInsights, Budget, Transaction } from '@/utils/analytics'
 import { motion } from 'framer-motion'
 
 interface Props {
-    budgetAlerts: any[]
+    budgetAlerts: Budget[]
     debtToPay: number
     debtToReceive: number
-    transactions: any[]
-    budgets: any[]
+    transactions: Transaction[]
+    budgets: Budget[]
 }
 
-export default function SmartFeed({ budgetAlerts, debtToPay, debtToReceive, transactions, budgets }: Props) {
+export default function SmartFeed({ budgetAlerts, debtToPay, transactions, budgets }: Props) {
     const insights = useMemo(() => generateInsights(transactions, budgets), [transactions, budgets])
 
     // Combine all "feed items" into a single list
@@ -38,7 +37,7 @@ export default function SmartFeed({ budgetAlerts, debtToPay, debtToReceive, tran
             type: 'warning',
             icon: <AlertTriangle size={20} className="text-orange-500" />,
             title: 'Presupuesto',
-            message: `${(b.categories as any)?.name} al ${(b.percent).toFixed(0)}%`,
+            message: `${b.categories?.name || 'Categoría'} al ${(b.percent).toFixed(0)}%`,
             bgColor: 'bg-orange-50 dark:bg-orange-900/10',
             borderColor: 'border-orange-100 dark:border-orange-900/30'
         })),

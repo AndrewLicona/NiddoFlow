@@ -1,8 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { signout } from './login/actions'
-import { seedTestData } from './seed/actions'
 import ChartCarousel from './dashboard/components/ChartCarousel'
 import SmartFeed from './dashboard/components/SmartFeed'
 import { formatCurrency } from '@/utils/format'
@@ -15,12 +13,8 @@ import { PageHeader } from '@/components/ui/molecules/PageHeader'
 import {
     Wallet,
     History as LucideHistory,
-    CreditCard,
-    ShieldCheck,
-    Banknote,
     ArrowUpCircle,
     ArrowDownCircle,
-    LogOut,
     Plus,
     ChevronRight,
 
@@ -28,6 +22,30 @@ import {
     TrendingDown,
     FileText
 } from 'lucide-react'
+
+
+interface Budget {
+    id: string
+    amount: number
+    categories?: { name: string } | null
+    spent: number
+    percent: number
+    category_id: string
+    period?: string
+    month?: number
+    week_number?: number
+    start_date?: string
+    end_date?: string
+}
+
+interface Account {
+    id: string;
+    balance: number;
+    type: string;
+    name: string;
+    family_id?: string;
+    user_id?: string;
+}
 
 export default async function DashboardPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -82,7 +100,7 @@ export default async function DashboardPage(props: {
         acc.family_id === profile.family_id &&
         (acc.type === 'joint' || (acc.type === 'personal' && acc.user_id === user.id))
     )
-    const totalBalance = myAccounts.reduce((acc: number, curr: any) => acc + Number(curr.balance), 0)
+    const totalBalance = myAccounts.reduce((acc: number, curr: Account) => acc + Number(curr.balance), 0)
 
     const monthlyTxs = monthlyStatsRes.data || []
     const income = monthlyTxs.filter(t => t.type === 'income').reduce((acc, curr) => acc + Number(curr.amount), 0)
@@ -117,26 +135,13 @@ export default async function DashboardPage(props: {
         }
 
         const spent = relevantTxs.reduce((acc, curr) => acc + Number(curr.amount), 0)
-        return { ...b, spent, percent: Math.min((spent / b.amount) * 100, 100) }
+        return { ...b, spent, percent: Math.min((spent / b.amount) * 100, 100) } as Budget
     })
 
     const budgetAlerts = currentBudgets.filter(b => b.percent >= 80)
     const debtToPay = (debtsRes.data || []).filter(d => d.type === 'to_pay').reduce((acc, curr) => acc + (Number(curr.total_amount) - Number(curr.paid_amount)), 0)
     const debtToReceive = (debtsRes.data || []).filter(d => d.type === 'to_receive').reduce((acc, curr) => acc + (Number(curr.total_amount) - Number(curr.paid_amount)), 0)
 
-    const expensesByCategory = monthlyTxs
-        .filter(t => t.type === 'expense')
-        .reduce((acc: any, curr: any) => {
-            const catName = curr.categories?.name || 'Otros'
-            acc[catName] = (acc[catName] || 0) + Number(curr.amount)
-            return acc
-        }, {})
-
-    const chartData = Object.entries(expensesByCategory).map(([name, value]) => ({
-        name,
-        value: Number(value),
-        color: ''
-    }))
 
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email
 
@@ -231,7 +236,7 @@ export default async function DashboardPage(props: {
                                     <div key={b.id} className="space-y-2">
                                         <div className="flex justify-between items-end">
                                             <div>
-                                                <Typography variant="body" className="font-bold text-foreground">{(b.categories as any)?.name}</Typography>
+                                                <Typography variant="body" className="font-bold text-foreground">{b.categories?.name}</Typography>
                                                 <div className="flex items-center space-x-2">
                                                     <Typography variant="small" className="text-[10px] opacity-50 uppercase font-black">
                                                         {b.period === 'weekly' ? 'Semanal' : b.period === 'biweekly' ? 'Quincenal' : b.period === 'custom' ? 'Manual' : 'Mensual'}

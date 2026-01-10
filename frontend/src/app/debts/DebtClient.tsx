@@ -288,7 +288,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                             label="Naturaleza"
                             as="select"
                             value={newDebt.type}
-                            onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as any })}
+                            onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as 'to_pay' | 'to_receive' })}
                         >
                             <option value="to_pay">Debio pagar (Egreso pendiente)</option>
                             <option value="to_receive">Me deben (Ingreso pendiente)</option>
@@ -436,6 +436,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                         <div className="flex items-center space-x-4">
                                             <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center overflow-hidden border border-foreground/5">
                                                 {receiptFile?.type.startsWith('image/') ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
                                                     <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
                                                 ) : (
                                                     <Paperclip className="text-blue-500" size={24} />

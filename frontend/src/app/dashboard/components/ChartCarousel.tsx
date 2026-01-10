@@ -13,10 +13,30 @@ import CategoryBarChart from '../charts/CategoryBarChart'
 import ExpensesAreaChart from '../charts/ExpensesAreaChart'
 import UserExpensesPieChart from '../charts/UserExpensesPieChart'
 
+interface Transaction {
+    id: string;
+    amount: number;
+    type: 'income' | 'expense' | 'transfer';
+    categories?: { name: string } | null;
+    date: string;
+}
+
+interface Account {
+    id: string;
+    balance: number;
+    type: string;
+    name?: string;
+}
+
+interface Profile {
+    id: string;
+    full_name: string | null;
+}
+
 interface Props {
-    transactions: any[]
-    accounts: any[]
-    profiles: any[]
+    transactions: Transaction[]
+    accounts: Account[]
+    profiles: Profile[]
 }
 
 export default function ChartCarousel({ transactions, accounts, profiles }: Props) {
@@ -25,7 +45,7 @@ export default function ChartCarousel({ transactions, accounts, profiles }: Prop
     // Prepare distribution data for the specific component that needs it in a special format
     const expensesByCategory = transactions
         .filter(t => t.type === 'expense')
-        .reduce((acc: any, curr: any) => {
+        .reduce((acc: Record<string, number>, curr: Transaction) => {
             const catName = curr.categories?.name || 'Otros'
             acc[catName] = (acc[catName] || 0) + Number(curr.amount)
             return acc

@@ -6,9 +6,16 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { formatCurrency } from '@/utils/format';
-import { Plus, CreditCard, Wallet, Banknote, Edit2, ExternalLink } from 'lucide-react';
+import { Plus, CreditCard, Wallet, Banknote } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+
+interface Account {
+    id: string;
+    name: string;
+    balance: number;
+    type: 'personal' | 'family';
+}
 
 async function getAccounts(token: string) {
     const res = await fetch(`${API_URL}/accounts/`, {
@@ -46,7 +53,7 @@ export default async function AccountsPage() {
             />
 
             <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {accounts.map((account: any) => (
+                {accounts.map((account: Account) => (
                     <Card
                         key={account.id}
                         variant="elevated"

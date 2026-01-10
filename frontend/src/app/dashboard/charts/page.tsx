@@ -28,11 +28,12 @@ interface Profile {
 interface Transaction {
     id: string;
     amount: number;
-    user_id: string;
-    category: string;
-    categories?: { name: string };
+    user_id?: string;
+    user_name?: string;
+    category?: string;
+    categories?: { name: string } | null;
     date: string;
-    type: 'income' | 'expense';
+    type: 'income' | 'expense' | 'transfer';
     description: string;
 }
 
@@ -62,7 +63,7 @@ const ChartsPage: React.FC = () => {
                 .select('id, full_name');
 
             setAccounts((accountsData || []) as Account[]);
-            setTransactions((transactionsData || []) as any[]);
+            setTransactions((transactionsData || []) as Transaction[]);
             setProfiles((profilesData || []) as Profile[]);
         };
         fetchData();

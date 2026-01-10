@@ -13,8 +13,9 @@ import {
 interface Transaction {
     id: string;
     amount: number;
-    user_id: string;
-    type: 'income' | 'expense';
+    user_id?: string;
+    user_name?: string;
+    type: 'income' | 'expense' | 'transfer';
 }
 
 interface Profile {
@@ -42,9 +43,9 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
             .filter(t => t.type === 'expense')
             .forEach(t => {
                 // Use profile map if available, otherwise user_name from transaction, or default
-                const name = (profiles && profiles.length > 0 && profileMap[t.user_id])
+                const name = (profiles && profiles.length > 0 && t.user_id && profileMap[t.user_id])
                     ? profileMap[t.user_id]
-                    : (t as any).user_name || 'Desconocido';
+                    : t.user_name || 'Desconocido';
                 userMap[name] = (userMap[name] || 0) + Number(t.amount);
             });
 

@@ -4,10 +4,18 @@ import { PageHeader } from '@/components/ui/molecules/PageHeader';
 import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { formatCurrency } from '@/utils/format';
-import { FileText, Download, Share2 } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import ReportsClient from '@/app/reports/ReportsClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+interface Transaction {
+    id: string;
+    amount: number;
+    type: 'income' | 'expense' | 'transfer';
+    date: string;
+    category_id?: string | null;
+}
 
 async function getData(token: string) {
     const res = await fetch(`${API_URL}/transactions/`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
@@ -25,13 +33,13 @@ export default async function ReportsPage() {
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
 
-    const currentMonthTransactions = transactions.filter((t: any) => {
+    const currentMonthTransactions = transactions.filter((t: Transaction) => {
         const d = new Date(t.date);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
-    const income = currentMonthTransactions.filter((t: any) => t.type === 'income').reduce((acc: number, curr: any) => acc + curr.amount, 0);
-    const expense = currentMonthTransactions.filter((t: any) => t.type === 'expense').reduce((acc: number, curr: any) => acc + curr.amount, 0);
+    const income = currentMonthTransactions.filter((t: Transaction) => t.type === 'income').reduce((acc: number, curr: Transaction) => acc + curr.amount, 0);
+    const expense = currentMonthTransactions.filter((t: Transaction) => t.type === 'expense').reduce((acc: number, curr: Transaction) => acc + curr.amount, 0);
     const balance = income - expense;
 
     return (

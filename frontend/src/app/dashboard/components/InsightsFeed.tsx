@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { generateInsights } from '@/utils/analytics'
+import { generateInsights, Transaction, Budget } from '@/utils/analytics'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { TrendingUp, TrendingDown, PieChart, AlertTriangle, Sparkles, Lightbulb, PiggyBank, CalendarClock, Activity } from 'lucide-react'
 
 interface Props {
-    transactions: any[]
-    budgets?: any[]
+    transactions: Transaction[]
+    budgets?: Budget[]
 }
 
 export default function InsightsFeed({ transactions, budgets = [] }: Props) {

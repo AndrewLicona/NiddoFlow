@@ -45,7 +45,7 @@ export async function payDebt(formData: {
         }
     }
 
-    const { data: tx, error: txError } = await supabase.from('transactions').insert({
+    const { error: txError } = await supabase.from('transactions').insert({
         family_id: profile.family_id,
         user_id: session.user.id,
         account_id: formData.accountId,

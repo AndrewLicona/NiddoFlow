@@ -7,7 +7,7 @@ import { Typography } from '@/components/ui/atoms/Typography'
 import { Button } from '@/components/ui/atoms/Button'
 import { Card } from '@/components/ui/molecules/Card'
 import { InputField } from '@/components/ui/molecules/InputField'
-import { Home, Link as LinkIcon, Copy, Check, Users, LogOut, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Home, Link as LinkIcon, Copy, Check, Users, LogOut, AlertTriangle } from 'lucide-react'
 
 type FamilyData = {
     id: string

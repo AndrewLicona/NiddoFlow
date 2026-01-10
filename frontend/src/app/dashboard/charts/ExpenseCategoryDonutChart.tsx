@@ -15,8 +15,8 @@ interface Transaction {
     id: string;
     amount: number;
     category_name?: string;
-    categories?: { name: string };
-    type: 'income' | 'expense';
+    categories?: { name: string } | null;
+    type: 'income' | 'expense' | 'transfer';
 }
 
 interface Props {

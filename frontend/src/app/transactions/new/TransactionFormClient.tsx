@@ -8,25 +8,35 @@ import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
 import { formatCurrency } from '@/utils/format';
-import { Save, X, Plus, Paperclip, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Save, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+
+interface Category {
+    id: string;
+    name: string;
+    type: 'income' | 'expense';
+}
+
+interface Account {
+    id: string;
+    name: string;
+    balance: number;
+}
 
 interface Props {
-    categories: any[];
-    accounts: any[];
+    categories: Category[];
+    accounts: Account[];
 }
 
 export default function TransactionFormClient({ categories, accounts }: Props) {
-    const router = useRouter();
     const [uploading, setUploading] = useState(false);
     const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [receiptFile, setReceiptFile] = useState<File | null>(null);
     const [type, setType] = useState<string>('expense');
 
-    const incomeCategories = categories.filter((c: any) => c.type === 'income');
-    const expenseCategories = categories.filter((c: any) => c.type === 'expense');
+    const incomeCategories = categories.filter((c: Category) => c.type === 'income');
+    const expenseCategories = categories.filter((c: Category) => c.type === 'expense');
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) {
@@ -127,7 +137,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                                 name="accountId"
                                 as="select"
                             >
-                                {accounts.map((a: any) => (
+                                {accounts.map((a: Account) => (
                                     <option key={a.id} value={a.id}>{a.name} ({formatCurrency(a.balance)})</option>
                                 ))}
                             </InputField>
@@ -157,7 +167,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                                 required
                             >
                                 <option value="">Selecciona cuenta destino</option>
-                                {accounts.map((a: any) => (
+                                {accounts.map((a: Account) => (
                                     <option key={a.id} value={a.id}>{a.name} ({formatCurrency(a.balance)})</option>
                                 ))}
                             </InputField>
@@ -172,10 +182,10 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             as="select"
                         >
                             <optgroup label="Gastos Comunes">
-                                {expenseCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                {expenseCategories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </optgroup>
                             <optgroup label="Fuentes de Ingreso">
-                                {incomeCategories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                {incomeCategories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </optgroup>
                         </InputField>
                     </div>
@@ -215,6 +225,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                                 <div className="flex items-center space-x-4">
                                     <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center overflow-hidden border border-foreground/5">
                                         {receiptFile?.type.startsWith('image/') ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
                                             <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
                                         ) : (
                                             <Paperclip className="text-blue-500" size={24} />

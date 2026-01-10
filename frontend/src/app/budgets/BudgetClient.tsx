@@ -1,13 +1,13 @@
 // src/app/budgets/BudgetClient.tsx
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar, Clock } from 'lucide-react';
+import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
 import { getWeekNumber, getStartOfWeek } from '@/utils/date';
 
 interface Budget {
@@ -65,37 +65,41 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         scope: 'family' as 'family' | 'personal'
     });
 
-    useEffect(() => {
-        if (newBudget.period === 'custom') return;
+    const calculateDates = (period: string, month: number, year: number) => {
+        if (period === 'custom') return {};
 
-        const baseDate = new Date(newBudget.year, newBudget.month - 1, 1);
-        let start = new Date(newBudget.year, newBudget.month - 1, 1);
-        let end = new Date(newBudget.year, newBudget.month, 0);
+        let start = new Date(year, month - 1, 1);
+        let end = new Date(year, month, 0);
 
-        if (newBudget.period === 'weekly') {
-            // Find start of first week of that month or just use selections
-            // For simplicity, if they select week, we could use the week_number
-            // But they also want start/end date.
-            // Let's stick to month context for now unless they manual edit.
-        } else if (newBudget.period === 'biweekly') {
+        if (period === 'biweekly') {
             const today = new Date();
-            const isSecondHalf = today.getMonth() + 1 === newBudget.month && today.getDate() > 15;
+            const isSecondHalf = today.getMonth() + 1 === month && today.getDate() > 15;
 
             if (isSecondHalf) {
-                start = new Date(newBudget.year, newBudget.month - 1, 16);
-                end = new Date(newBudget.year, newBudget.month, 0);
+                start = new Date(year, month - 1, 16);
+                end = new Date(year, month, 0);
             } else {
-                start = new Date(newBudget.year, newBudget.month - 1, 1);
-                end = new Date(newBudget.year, newBudget.month - 1, 15);
+                start = new Date(year, month - 1, 1);
+                end = new Date(year, month - 1, 15);
             }
         }
 
-        setNewBudget(prev => ({
-            ...prev,
+        return {
             start_date: start.toISOString().split('T')[0],
             end_date: end.toISOString().split('T')[0]
-        }));
-    }, [newBudget.period, newBudget.month, newBudget.year]);
+        };
+    };
+
+    const handleBudgetChange = (updates: Partial<typeof newBudget>) => {
+        setNewBudget(prev => {
+            const updated = { ...prev, ...updates };
+            if (updates.period || updates.month || updates.year) {
+                const dates = calculateDates(updated.period, updated.month, updated.year);
+                return { ...updated, ...dates };
+            }
+            return updated;
+        });
+    };
 
     const expenseCategories = useMemo(() =>
         categories.filter(c => c.type === 'expense'),
@@ -112,7 +116,6 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
 
     const budgetStats = useMemo(() => {
         const currentWeekNumber = getWeekNumber(new Date());
-        const currentYear = new Date().getFullYear();
 
         return filteredBudgets.map(budget => {
             const category = categories.find(c => c.id === budget.category_id);
@@ -278,14 +281,14 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-full md:w-auto">
                                 <button
                                     type="button"
-                                    onClick={() => setNewBudget({ ...newBudget, scope: 'family' })}
+                                    onClick={() => handleBudgetChange({ scope: 'family' })}
                                     className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all border border-transparent ${newBudget.scope === 'family' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                                 >
                                     Familiar (Global)
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setNewBudget({ ...newBudget, scope: 'personal' })}
+                                    onClick={() => handleBudgetChange({ scope: 'personal' })}
                                     className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all border border-transparent ${newBudget.scope === 'personal' ? 'bg-white dark:bg-slate-700 text-cyan-600 shadow-sm border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                                 >
                                     Personal (Solo yo)
@@ -316,7 +319,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Frecuencia"
                             as="select"
                             value={newBudget.period}
-                            onChange={(e) => setNewBudget({ ...newBudget, period: e.target.value as any })}
+                            onChange={(e) => handleBudgetChange({ period: e.target.value as 'weekly' | 'biweekly' | 'monthly' | 'custom' })}
                         >
                             <option value="monthly">Mensual</option>
                             <option value="biweekly">Quincenal</option>
@@ -328,7 +331,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Mes Objetivo"
                             as="select"
                             value={newBudget.month}
-                            onChange={(e) => setNewBudget({ ...newBudget, month: parseInt(e.target.value) })}
+                            onChange={(e) => handleBudgetChange({ month: parseInt(e.target.value) })}
                         >
                             {Array.from({ length: 12 }, (_, i) => (
                                 <option key={i + 1} value={i + 1}>
@@ -341,7 +344,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             label="Año"
                             type="number"
                             value={newBudget.year}
-                            onChange={(e) => setNewBudget({ ...newBudget, year: parseInt(e.target.value) })}
+                            onChange={(e) => handleBudgetChange({ year: parseInt(e.target.value) })}
                         />
 
                         <div className="md:col-span-1">

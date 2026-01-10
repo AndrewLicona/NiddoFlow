@@ -74,7 +74,18 @@ export async function deleteTransaction(transactionId: string) {
     revalidatePath('/')
 }
 
-export async function updateTransaction(transactionId: string, data: any) {
+interface TransactionUpdate {
+    description?: string;
+    amount?: number;
+    type?: 'income' | 'expense' | 'transfer';
+    category_id?: string | null;
+    account_id?: string;
+    date?: string;
+    receipt_url?: string | null;
+    target_account_id?: string | null;
+}
+
+export async function updateTransaction(transactionId: string, data: TransactionUpdate) {
     const headers = await getAuthHeader()
     if (!headers) redirect('/login')
 

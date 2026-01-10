@@ -5,17 +5,24 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { Download, Share2, FileText, Loader2, Calendar, PieChart as PieChartIcon, BarChart2, Users, Printer, TrendingUp, AlertCircle, Info } from 'lucide-react';
+import { TrendingUp, AlertCircle, Info, Printer, Calendar, Share2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
-import CategoryBarChart from '@/app/dashboard/charts/CategoryBarChart';
 import ExpenseCategoryDonutChart from '@/app/dashboard/charts/ExpenseCategoryDonutChart';
-import IncomeExpenseBarChart from '@/app/dashboard/charts/IncomeExpenseBarChart';
 import UserExpensesPieChart from '@/app/dashboard/charts/UserExpensesPieChart';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+
+interface Transaction {
+    id: string;
+    amount: number;
+    type: 'income' | 'expense' | 'transfer';
+    date: string;
+    description: string;
+    category_name?: string;
+    user_id?: string;
+    user_name?: string;
+}
 
 interface Props {
-    transactions: any[];
+    transactions: Transaction[];
 }
 
 export default function ReportsClient({ transactions }: Props) {
@@ -39,9 +46,11 @@ export default function ReportsClient({ transactions }: Props) {
     }, [transactions, startDate, endDate]);
 
     // Financial Analysis (Insights)
+    const [reportId] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
+
     const insights = useMemo(() => {
-        const income = filteredTransactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
-        const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+        const income = filteredTransactions.filter((t: Transaction) => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+        const expense = filteredTransactions.filter((t: Transaction) => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
         const balance = income - expense;
 
         // Categoría de mayor gasto
@@ -108,7 +117,7 @@ export default function ReportsClient({ transactions }: Props) {
         if (navigator.share) {
             try {
                 await navigator.share({ title: 'Reporte NiddoFlow', text: text });
-            } catch (err) {
+            } catch {
                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
             }
         } else {
@@ -382,7 +391,7 @@ export default function ReportsClient({ transactions }: Props) {
                             <div className="text-right">
                                 <p className="text-xl font-bold">{new Date(startDate).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }).toUpperCase()}</p>
                                 <p className="text-xs font-bold text-slate-400 tracking-wider">GENERADO: {new Date().toLocaleDateString()}</p>
-                                <p className="text-[10px] text-blue-500 font-bold mt-1">ID: REF-{Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
+                                <p className="text-[10px] text-blue-500 font-bold mt-1">ID: REF-{reportId}</p>
                             </div>
                         </div>
 

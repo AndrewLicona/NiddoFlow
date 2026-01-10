@@ -1,43 +1,9 @@
 // src/app/budgets/page.tsx
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import BudgetClient from './BudgetClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-async function getBudgets(token: string) {
-    const res = await fetch(`${API_URL}/budgets/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    return res.json();
-}
-
-async function getCategories(token: string) {
-    const res = await fetch(`${API_URL}/categories/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    return res.json();
-}
-
-async function getTransactions(token: string) {
-    const res = await fetch(`${API_URL}/transactions/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    return res.json();
-}
 
 import { PageHeader } from '@/components/ui/molecules/PageHeader';
 

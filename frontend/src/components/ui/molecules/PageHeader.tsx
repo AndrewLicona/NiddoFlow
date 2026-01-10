@@ -2,13 +2,18 @@ import React from 'react';
 import Link from 'next/link';
 import { Typography } from '../atoms/Typography';
 
+interface UserProfile {
+    full_name?: string | null;
+    email?: string;
+}
+
 interface PageHeaderProps {
     title: string;
     description?: string;
     backHref?: string;
     actions?: React.ReactNode;
     showProfile?: boolean;
-    userProfile?: any;
+    userProfile?: UserProfile;
 }
 
 export const PageHeader = ({ title, description, backHref, actions, showProfile, userProfile }: PageHeaderProps) => {

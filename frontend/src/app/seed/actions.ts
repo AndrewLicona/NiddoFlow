@@ -11,7 +11,7 @@ function getWeekNumber(date: Date): number {
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-export async function seedTestData(formData: FormData) {
+export async function seedTestData() {
     const supabase = await createClient()
 
     // 1. Get User and Family ID

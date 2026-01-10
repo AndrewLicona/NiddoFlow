@@ -15,9 +15,11 @@ import {
 interface Transaction {
     id: string;
     amount: number;
-    category: string;
+    category?: string;
     date: string;
-    type: 'income' | 'expense';
+    type: 'income' | 'expense' | 'transfer';
+    category_name?: string;
+    categories?: { name: string } | null;
 }
 
 interface Props {
@@ -32,7 +34,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
         transactions
             .filter(t => t.type === 'expense')
             .forEach(t => {
-                const catName = (t as any).category_name || (t as any).categories?.name || 'Varios';
+                const catName = t.category_name || t.categories?.name || 'Varios';
                 map[catName] = (map[catName] || 0) + Number(t.amount);
             });
 

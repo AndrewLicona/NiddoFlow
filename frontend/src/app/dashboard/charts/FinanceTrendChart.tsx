@@ -10,17 +10,16 @@ import {
     Tooltip,
     ResponsiveContainer
 } from 'recharts'
-import { Card } from '@/components/ui/molecules/Card'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { formatCurrency } from '@/utils/format'
-import { startOfMonth, endOfMonth, subMonths, format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns'
+import { startOfMonth, endOfMonth, subMonths, format, parseISO, isWithinInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon, ChevronDown, TrendingUp } from 'lucide-react'
+import { Calendar as CalendarIcon, TrendingUp } from 'lucide-react'
 
 interface Transaction {
     id: string
     amount: number
-    type: 'income' | 'expense'
+    type: 'income' | 'expense' | 'transfer'
     date: string
     description?: string
 }
@@ -171,11 +170,11 @@ export default function FinanceTrendChart({ transactions }: Props) {
                                         <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 text-xs">
                                             <p className="font-bold mb-2 text-slate-700 dark:text-slate-200">{label}</p>
                                             <div className="space-y-1">
-                                                {payload.map((p: any) => (
-                                                    <div key={p.name} className="flex items-center gap-2">
+                                                {payload.map((p) => (
+                                                    <div key={p.dataKey as string} className="flex items-center gap-2">
                                                         <div className={`w-2 h-2 rounded-full ${p.dataKey === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                                         <span className="capitalize text-slate-500">{p.dataKey === 'income' ? 'Ingresos' : 'Gastos'}:</span>
-                                                        <span className="font-mono font-bold">{formatCurrency(p.value)}</span>
+                                                        <span className="font-mono font-bold">{formatCurrency(p.value as number)}</span>
                                                     </div>
                                                 ))}
                                             </div>

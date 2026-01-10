@@ -20,4 +20,3 @@ self.addEventListener('fetch', (event) => {
         })
     );
 });
-Riverside

@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { joinFamilyByCode } from './actions'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
 export default async function InvitePage({ params }: { params: Promise<{ code: string }> }) {
     const supabase = await createClient()
@@ -17,7 +16,7 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
     }
 
     // Fetch Family Details to show name
-    const { data: families, error } = await supabase
+    const { data: families } = await supabase
         .from('families')
         .select('*')
         .eq('invite_code', code)

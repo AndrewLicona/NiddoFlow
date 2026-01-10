@@ -3,18 +3,6 @@ import { redirect } from 'next/navigation';
 import DebtClient from './DebtClient';
 import { PageHeader } from '@/components/ui/molecules/PageHeader';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-async function getDebts(token: string) {
-    const res = await fetch(`${API_URL}/debts/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        cache: 'no-store'
-    });
-    if (!res.ok) return [];
-    return res.json();
-}
 
 export default async function DebtsPage() {
     const supabase = await createClient();

@@ -404,7 +404,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     label="Tipo"
                                                                     as="select"
                                                                     value={editData.type}
-                                                                    onChange={e => setEditData({ ...editData, type: e.target.value as any })}
+                                                                    onChange={e => setEditData({ ...editData, type: e.target.value as 'income' | 'expense' | 'transfer' })}
                                                                 >
                                                                     <option value="expense">Gasto</option>
                                                                     <option value="income">Ingreso</option>
@@ -639,11 +639,11 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                 {viewingReceipt.toLowerCase().endsWith('.pdf') ? (
                                     <iframe src={viewingReceipt} className="w-full h-full rounded-3xl" border-0 />
                                 ) : (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                         src={viewingReceipt}
                                         alt="Soporte de transacción"
                                         className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl"
-                                    // eslint-disable-next-line @next/next/no-img-element
                                     />
                                 )}
                             </div>
