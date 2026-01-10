@@ -150,7 +150,33 @@ docker logs -f niddoflow-backend
 # Reiniciar un contenedor
 docker restart niddoflow-frontend
 
-# Eliminar todo y empezar de nuevo
-docker-compose down -v
-docker-compose up -d --build
+### Limpieza y Re-inicio (Clean Start)
+Si experimentas lentitud extrema, errores `ERR_FAILED` o inconsistencias, usa este comando para borrarlo todo y empezar de nuevo con las últimas imágenes:
+
+```bash
+docker compose down
+docker system prune -af  # ⚠️ Cuidado: Borra todas las imágenes no usadas
+git pull origin main
+docker compose down
+docker compose --env-file .env.production up -d --build
 ```
+
+---
+
+## 📝 Comandos Útiles
+
+```bash
+# Ver todos los contenedores
+docker ps -a | grep niddoflow
+
+# Ver logs en tiempo real
+docker logs -f niddoflow-backend
+
+# Reiniciar un contenedor
+docker restart niddoflow-frontend
+
+# Eliminar todo (incluyendo volúmenes) y empezar de nuevo
+docker compose down -v
+docker compose up -d --build
+```
+
