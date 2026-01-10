@@ -62,8 +62,6 @@ export default function ReportsClient({ transactions }: Props) {
         return { income, expense, balance, topCategory, dailyAvg, savingsRate, txCount: filteredTransactions.length };
     }, [filteredTransactions, startDate, endDate]);
 
-
-
     const [containerHeight, setContainerHeight] = useState<string | number>('auto');
 
     // Dynamic height adjustment for mobile preview scaling
@@ -78,16 +76,13 @@ export default function ReportsClient({ transactions }: Props) {
             const containerWidth = container.offsetWidth;
             const isMobile = window.innerWidth <= 768;
 
-            // MATH FIX: Use container width instead of 100vw to avoid overflow/narrowness
-            // padding a bit (32px) for aesthetics
             const targetWidth = isMobile ? containerWidth - 32 : 900;
             const scale = isMobile ? targetWidth / 900 : 1;
 
             wrapper.style.transform = `scale(${scale})`;
 
-            // Set container height to exactly match the scaled content + top/bottom padding
             const scaledHeight = reportRef.current.scrollHeight * scale;
-            const headerHeight = 60; // Approximate height of the tab bar
+            const headerHeight = 60;
             setContainerHeight(Math.max(400, scaledHeight + headerHeight + 80));
         };
 
@@ -119,29 +114,6 @@ export default function ReportsClient({ transactions }: Props) {
         } else {
             window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
         }
-    };
-
-    const downloadCSV = () => {
-        const headers = ['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto'];
-        const csvContent = [
-            headers.join(','),
-            ...filteredTransactions.map(t => [
-                new Date(t.date).toLocaleDateString('es-CO'),
-                t.type === 'income' ? 'Ingreso' : 'Gasto',
-                `"${t.category_name || 'Sin Categoría'}"`,
-                `"${(t.description || '').replace(/"/g, '""')}"`,
-                t.amount
-            ].join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `niddo-reporte-${startDate}-${endDate}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     return (
@@ -264,7 +236,6 @@ export default function ReportsClient({ transactions }: Props) {
                 }
                 
                 @media print {
-                    /* 1. Isolation Path: Only show the report and its necessary wrappers */
                     body > *:not(main),
                     main > *:not(.reports-page),
                     .reports-page > *:not(.report-preview-container),
@@ -273,7 +244,6 @@ export default function ReportsClient({ transactions }: Props) {
                         display: none !important;
                     }
 
-                    /* 2. Reset ancestors to 0 flow */
                     html, body, main, .antialiased, .reports-page, .report-preview-container, .printable-wrapper {
                         margin: 0 !important;
                         padding: 0 !important;
@@ -283,17 +253,16 @@ export default function ReportsClient({ transactions }: Props) {
                         display: block !important;
                         overflow: visible !important;
                         width: 100% !important;
-                        min-width: 21cm !important; /* Force min width for proper scaling */
+                        min-width: 21cm !important;
                         max-width: none !important;
                         box-shadow: none !important;
                         border: none !important;
                         transform: none !important;
-                        position: absolute !important; /* Absolute positioning relative to page helps with margin consistency */
+                        position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
                     }
 
-                    /* 3. Forces for charts and KPI colors */
                     svg, svg * {
                         display: block !important;
                         visibility: visible !important;
@@ -305,15 +274,13 @@ export default function ReportsClient({ transactions }: Props) {
                     .bg-slate-900 { background-color: #0F172A !important; }
                     .text-white { color: #FFFFFF !important; }
 
-                    /* 4. Chart & Page Break Handling */
                     .break-avoid {
                         break-inside: avoid !important;
                         page-break-inside: avoid !important;
                     }
 
-                    /* 5. Force A4 Width & Legibility */
                     #printable-report-content {
-                        width: 100% !important; /* Let margins control layout */
+                        width: 100% !important; 
                         max-width: none !important;
                         padding: 0 !important;
                         margin: 0 !important;
@@ -322,7 +289,6 @@ export default function ReportsClient({ transactions }: Props) {
                         min-height: 100vh !important;
                     }
                     
-                    /* Improve Text Contrast for Charts in Print */
                     .recharts-text {
                         fill: #0F172A !important;
                         font-weight: 600 !important;
@@ -345,7 +311,7 @@ export default function ReportsClient({ transactions }: Props) {
 
                     @page {
                         size: A4 portrait;
-                        margin: 1.5cm; /* Fixes missing top margin on subsequent pages */
+                        margin: 1.5cm;
                     }
                 }
             `}</style>
@@ -367,14 +333,10 @@ export default function ReportsClient({ transactions }: Props) {
                         <Printer size={24} />
                         <span className="font-bold">Imprimir Reporte</span>
                     </Button>
-                    <div className="grid grid-rows-2 gap-2">
-                        <Button onClick={downloadCSV} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 shadow-emerald-500/10" variant="primary">
-                            <Download size={16} />
-                            <span className="text-xs font-bold">Descargar Historial (CSV)</span>
-                        </Button>
-                        <Button onClick={shareReport} className="w-full flex items-center justify-center gap-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200" variant="outline">
-                            <Share2 size={16} />
-                            <span className="text-xs font-bold">Whatsapp</span>
+                    <div className="flex items-center">
+                        <Button onClick={shareReport} className="w-full h-full flex flex-col gap-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 py-6" variant="outline">
+                            <Share2 size={24} />
+                            <span className="font-bold">Compartir</span>
                         </Button>
                     </div>
                 </div>
@@ -454,7 +416,7 @@ export default function ReportsClient({ transactions }: Props) {
                                 <p className="text-sm text-slate-600 leading-relaxed">
                                     En este período, tu categoría de mayor impacto fue <strong className="text-slate-900">{insights.topCategory[0]}</strong> con un total de <strong>{formatCurrency(insights.topCategory[1] as number)}</strong>.
                                     Tu promedio de gasto diario es de <strong>{formatCurrency(insights.dailyAvg)}</strong>.
-                                    {insights.balance > 0 ? " ¡Vas por buen camino, mantienes un balance positivo!" : " Se recomienda revisar los gastos preventivos para el próximo ciclo."}
+                                    {insights.balance > 0 ? ' ¡Vas por buen camino, mantienes un balance positivo!' : ' Se recomienda revisar los gastos preventivos para el próximo ciclo.'}
                                 </p>
                             </div>
                         </div>
@@ -471,7 +433,7 @@ export default function ReportsClient({ transactions }: Props) {
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-500 font-medium">
                                     <AlertCircle size={14} className="inline mr-1 mb-1" />
-                                    Este gráfico agrupa tus gastos por las categorías configuradas. Ayuda a visualizar dónde se está "yendo el dinero".
+                                    Este gráfico agrupa tus gastos por las categorías configuradas. Ayuda a visualizar dónde se está &quot;yendo el dinero&quot;.
                                 </div>
                             </div>
 
@@ -489,8 +451,6 @@ export default function ReportsClient({ transactions }: Props) {
                                 </div>
                             </div>
                         </div>
-
-
 
                         {/* Recent Table */}
                         <div className="space-y-6 break-avoid">

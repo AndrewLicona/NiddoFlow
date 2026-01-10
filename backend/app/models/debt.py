@@ -10,6 +10,7 @@ class DebtBase(BaseModel):
     type: Literal['to_pay', 'to_receive']
     status: Literal['active', 'paid'] = 'active'
     category_id: Optional[UUID] = None
+    account_id: Optional[UUID] = None
     due_date: Optional[date] = None
 
 class DebtCreate(DebtBase):

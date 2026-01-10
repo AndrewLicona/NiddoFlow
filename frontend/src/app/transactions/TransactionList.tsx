@@ -20,7 +20,10 @@ import {
     CheckCircle2,
     History as LucideHistory,
     Paperclip,
-    Loader2
+    Loader2,
+    Download,
+    Image as ImageIcon,
+    ExternalLink
 } from 'lucide-react';
 import { deleteTransaction, updateTransaction } from './actions';
 
@@ -36,6 +39,8 @@ interface Transaction {
     account_name?: string;
     user_name?: string;
     receipt_url?: string;
+    target_account_id?: string;
+    target_account_name?: string;
 }
 
 interface Category {
@@ -65,6 +70,14 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
     const [filter, setFilter] = useState<'all' | 'income' | 'expense' | 'debts'>('all');
     const [debtSubFilter, setDebtSubFilter] = useState<'all' | 'income' | 'expense'>('all');
     const [uploadingReceipt, setUploadingReceipt] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportScope, setExportScope] = useState<'family' | 'personal'>('family');
+    const [exportRange, setExportRange] = useState({
+        start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
+    const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
 
     const uploadReceipt = async (file: File) => {
         setUploadingReceipt(true);
@@ -131,6 +144,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
             type: t.type,
             category_id: t.category_id,
             account_id: t.account_id,
+            target_account_id: t.target_account_id,
             date: t.date, // Keep full ISO string for datetime-local editing
             receipt_url: t.receipt_url,
         });
@@ -148,6 +162,39 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
             alert('Error al actualizar la transacción');
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/transactions/export?scope=${exportScope}&start_date=${exportRange.start}&end_date=${exportRange.end}`;
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+
+            if (res.ok) {
+                const blob = await res.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `audit_${exportScope}_${exportRange.start}_to_${exportRange.end}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setShowExportModal(false);
+            } else {
+                alert('Error al generar la exportación');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error al exportar');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -198,9 +245,8 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
 
     return (
         <div className="space-y-6 md:space-y-8">
-            {/* Segmentation Tabs */}
-            <div className="flex flex-col space-y-4">
-                <div className="flex p-1 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] w-fit mx-auto md:mx-0 overflow-x-auto max-w-full no-scrollbar">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
+                <div className="flex p-1 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] w-fit overflow-x-auto max-w-full no-scrollbar">
                     {(['all', 'income', 'expense', 'debts'] as const).map((f) => (
                         <button
                             key={f}
@@ -217,25 +263,37 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                     ))}
                 </div>
 
-                {filter === 'debts' && (
-                    <div className="flex p-1 bg-foreground/[0.02] rounded-xl border border-foreground/[0.03] w-fit mx-auto md:mx-0 animate-in fade-in slide-in-from-left-2 duration-300">
-                        {(['all', 'income', 'expense'] as const).map((sf) => (
-                            <button
-                                key={sf}
-                                onClick={() => setDebtSubFilter(sf)}
-                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${debtSubFilter === sf
-                                    ? sf === 'income' ? 'bg-emerald-500/10 text-emerald-600' :
-                                        sf === 'expense' ? 'bg-rose-500/10 text-rose-600' :
-                                            'bg-foreground/10 text-foreground/60'
-                                    : 'text-foreground/20 hover:text-foreground/40'
-                                    }`}
-                            >
-                                {sf === 'all' ? 'Todos' : sf === 'income' ? 'Entradas (+)' : 'Salidas (-)'}
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl font-black text-[10px] uppercase tracking-wider h-10 border-foreground/10"
+                        onClick={() => setShowExportModal(true)}
+                    >
+                        <Download size={14} className="mr-2" />
+                        Exportar PDF
+                    </Button>
+                </div>
             </div>
+
+            {filter === 'debts' && (
+                <div className="flex p-1 bg-foreground/[0.02] rounded-xl border border-foreground/[0.03] w-fit mx-auto md:mx-0 animate-in fade-in slide-in-from-left-2 duration-300">
+                    {(['all', 'income', 'expense'] as const).map((sf) => (
+                        <button
+                            key={sf}
+                            onClick={() => setDebtSubFilter(sf)}
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${debtSubFilter === sf
+                                ? sf === 'income' ? 'bg-emerald-500/10 text-emerald-600' :
+                                    sf === 'expense' ? 'bg-rose-500/10 text-rose-600' :
+                                        'bg-foreground/10 text-foreground/60'
+                                : 'text-foreground/20 hover:text-foreground/40'
+                                }`}
+                        >
+                            {sf === 'all' ? 'Todos' : sf === 'income' ? 'Entradas (+)' : 'Salidas (-)'}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {Object.keys(processedTransactions).length === 0 ? (
                 <Card variant="outline" padding="lg" className="text-center border-dashed py-24 bg-foreground/[0.01]">
@@ -292,6 +350,11 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     <Typography variant="small" className="font-black text-[9px] md:text-[11px] opacity-40 uppercase tracking-widest truncate max-w-[120px] md:max-w-none">
                                                                         {t.account_name}
                                                                     </Typography>
+                                                                    {t.receipt_url && (
+                                                                        <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0" title="Ver Soporte">
+                                                                            <ImageIcon size={8} className="mr-1 md:w-2.5 md:h-2.5" /> Soporte
+                                                                        </span>
+                                                                    )}
                                                                     {(t.description.includes('[COBRO DEUDA]') || t.description.includes('[PAGO DEUDA]') || t.description.toLowerCase().includes('pago de deuda')) && (
                                                                         <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0">
                                                                             <ArrowLeftRight size={8} className="mr-1 md:w-2.5 md:h-2.5" /> Deuda
@@ -338,6 +401,16 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     onChange={e => setEditData({ ...editData, amount: parseFloat(e.target.value) })}
                                                                 />
                                                                 <InputField
+                                                                    label="Tipo"
+                                                                    as="select"
+                                                                    value={editData.type}
+                                                                    onChange={e => setEditData({ ...editData, type: e.target.value as any })}
+                                                                >
+                                                                    <option value="expense">Gasto</option>
+                                                                    <option value="income">Ingreso</option>
+                                                                    <option value="transfer">Transferencia</option>
+                                                                </InputField>
+                                                                <InputField
                                                                     label="Categoría"
                                                                     as="select"
                                                                     value={editData.category_id}
@@ -359,6 +432,19 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                 >
                                                                     {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                                                 </InputField>
+
+                                                                {editData.type === 'transfer' && (
+                                                                    <InputField
+                                                                        label="Cuenta Destino"
+                                                                        as="select"
+                                                                        value={editData.target_account_id || ''}
+                                                                        onChange={e => setEditData({ ...editData, target_account_id: e.target.value })}
+                                                                    >
+                                                                        <option value="">Selecciona cuenta</option>
+                                                                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                                                    </InputField>
+                                                                )}
+
                                                                 <InputField
                                                                     label="Fecha y Hora"
                                                                     type="datetime-local"
@@ -431,10 +517,13 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     {t.receipt_url && (
                                                                         <div className="space-y-1">
                                                                             <Typography variant="small" className="opacity-30 font-black uppercase tracking-widest text-[10px]">Comprobante</Typography>
-                                                                            <a href={t.receipt_url} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-bold text-xs group">
-                                                                                <Paperclip size={14} className="group-hover:scale-110 transition-transform" />
-                                                                                <span>Ver Recibo</span>
-                                                                            </a>
+                                                                            <button
+                                                                                onClick={() => setViewingReceipt(t.receipt_url!)}
+                                                                                className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-bold text-xs group"
+                                                                            >
+                                                                                <ImageIcon size={14} className="group-hover:scale-110 transition-transform" />
+                                                                                <span>Ver Soporte</span>
+                                                                            </button>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -465,9 +554,105 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                             </ul>
                         </div>
                     ))}
+                    {/* Export Modal */}
+                    {showExportModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                            <Card variant="elevated" className="w-full max-w-md animate-in fade-in zoom-in duration-300 overflow-visible">
+                                <div className="flex justify-between items-center mb-6">
+                                    <Typography variant="h3" className="font-black">Exportar Auditoría</Typography>
+                                    <Button variant="ghost" size="sm" onClick={() => setShowExportModal(false)} className="p-0 h-8 w-8">
+                                        <X size={20} />
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Alcance</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Button
+                                                variant={exportScope === 'family' ? 'primary' : 'outline'}
+                                                onClick={() => setExportScope('family')}
+                                                className="text-[10px] font-black uppercase h-12"
+                                            >
+                                                Familiar (Todo)
+                                            </Button>
+                                            <Button
+                                                variant={exportScope === 'personal' ? 'primary' : 'outline'}
+                                                onClick={() => setExportScope('personal')}
+                                                className="text-[10px] font-black uppercase h-12"
+                                            >
+                                                Personal (Mío)
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField
+                                            label="Desde"
+                                            type="date"
+                                            value={exportRange.start}
+                                            onChange={e => setExportRange({ ...exportRange, start: e.target.value })}
+                                        />
+                                        <InputField
+                                            label="Hasta"
+                                            type="date"
+                                            value={exportRange.end}
+                                            onChange={e => setExportRange({ ...exportRange, end: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <Button
+                                        className="w-full h-14 font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-500/20"
+                                        onClick={handleExport}
+                                        isLoading={isExporting}
+                                    >
+                                        <Download size={18} className="mr-2" />
+                                        Descargar CSV
+                                    </Button>
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* Receipt Modal */}
+                    {viewingReceipt && (
+                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[101] flex items-center justify-center p-4 md:p-10">
+                            <div className="absolute top-6 right-6 flex items-center space-x-4">
+                                <a
+                                    href={viewingReceipt}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl transition-all"
+                                    title="Abrir en nueva pestaña"
+                                >
+                                    <ExternalLink size={24} />
+                                </a>
+                                <button
+                                    onClick={() => setViewingReceipt(null)}
+                                    className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl transition-all"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <div className="w-full h-full flex items-center justify-center animate-in zoom-in fade-in duration-500">
+                                {viewingReceipt.toLowerCase().endsWith('.pdf') ? (
+                                    <iframe src={viewingReceipt} className="w-full h-full rounded-3xl" border-0 />
+                                ) : (
+                                    <img
+                                        src={viewingReceipt}
+                                        alt="Soporte de transacción"
+                                        className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl"
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 

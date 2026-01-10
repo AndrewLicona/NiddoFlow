@@ -13,7 +13,7 @@ class TransactionBase(BaseModel):
     receipt_url: Optional[str] = None
 
 class TransactionCreate(TransactionBase):
-    pass
+    target_account_id: Optional[UUID] = None
 
 class TransactionUpdate(BaseModel):
     description: Optional[str] = None
@@ -23,6 +23,7 @@ class TransactionUpdate(BaseModel):
     category_id: Optional[UUID] = None
     account_id: Optional[UUID] = None
     receipt_url: Optional[str] = None
+    target_account_id: Optional[UUID] = None
 
 class TransactionResponse(TransactionBase):
     id: UUID
@@ -32,3 +33,4 @@ class TransactionResponse(TransactionBase):
     category_name: Optional[str] = None
     account_name: Optional[str] = None
     user_name: Optional[str] = None
+    target_account_id: Optional[UUID] = None

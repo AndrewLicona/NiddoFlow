@@ -21,6 +21,7 @@ interface Budget {
     year: number;
     start_date?: string;
     end_date?: string;
+    user_id: string | null;
 }
 
 interface Category {
@@ -35,6 +36,7 @@ interface Transaction {
     category_id: string | null;
     date: string;
     type: 'income' | 'expense' | 'transfer';
+    user_id?: string;
 }
 
 interface Props {
@@ -42,13 +44,15 @@ interface Props {
     categories: Category[];
     transactions: Transaction[];
     token: string;
+    userId: string;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-export default function BudgetClient({ initialBudgets, categories, transactions, token }: Props) {
-    const [budgets, setBudgets] = useState(initialBudgets);
+export default function BudgetClient({ initialBudgets, categories, transactions, token, userId }: Props) {
+    const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
     const [isCreating, setIsCreating] = useState(false);
+    const [scopeFilter, setScopeFilter] = useState<'all' | 'personal' | 'family'>('all');
     const [newBudget, setNewBudget] = useState({
         category_id: '',
         amount: '',
@@ -57,7 +61,8 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         week_number: getWeekNumber(new Date()),
         year: new Date().getFullYear(),
         start_date: '',
-        end_date: ''
+        end_date: '',
+        scope: 'family' as 'family' | 'personal'
     });
 
     useEffect(() => {
@@ -96,17 +101,35 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         categories.filter(c => c.type === 'expense'),
         [categories]);
 
+    const filteredBudgets = useMemo(() => {
+        return budgets.filter(b => {
+            if (scopeFilter === 'all') return true;
+            if (scopeFilter === 'personal') return b.user_id === userId;
+            if (scopeFilter === 'family') return !b.user_id;
+            return true;
+        });
+    }, [budgets, scopeFilter, userId]);
+
     const budgetStats = useMemo(() => {
         const currentWeekNumber = getWeekNumber(new Date());
         const currentYear = new Date().getFullYear();
 
-        return budgets.map(budget => {
+        return filteredBudgets.map(budget => {
             const category = categories.find(c => c.id === budget.category_id);
 
             let relevantTxs = transactions.filter(t =>
                 t.type === 'expense' &&
                 t.category_id === budget.category_id
             );
+
+            // Strict Personal vs Family Filter
+            if (budget.user_id) {
+                // Personal Budget: Only count my own transactions
+                relevantTxs = relevantTxs.filter(t => t.user_id === budget.user_id);
+            } else {
+                // Family Budget: Count everyone's transactions (Global)
+                // (Already includes everyone because 'transactions' prop has family scope)
+            }
 
             if (budget.start_date && budget.end_date) {
                 const start = new Date(budget.start_date);
@@ -146,11 +169,13 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 remaining: budget.amount - spent
             };
         });
-    }, [budgets, categories, transactions]);
+    }, [filteredBudgets, categories, transactions]);
 
     const handleCreateBudget = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const user_id = newBudget.scope === 'personal' ? userId : null;
+
             const res = await fetch(`${API_URL}/budgets/`, {
                 method: 'POST',
                 headers: {
@@ -160,7 +185,8 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 body: JSON.stringify({
                     ...newBudget,
                     amount: parseFloat(newBudget.amount),
-                    category_id: newBudget.category_id || null
+                    category_id: newBudget.category_id || null,
+                    user_id
                 })
             });
 
@@ -168,6 +194,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 const created = await res.json();
                 setBudgets([...budgets, created]);
                 setIsCreating(false);
+                setScopeFilter(user_id ? 'personal' : 'family');
                 setNewBudget({
                     category_id: '',
                     amount: '',
@@ -176,7 +203,8 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                     week_number: getWeekNumber(new Date()),
                     year: new Date().getFullYear(),
                     start_date: '',
-                    end_date: ''
+                    end_date: '',
+                    scope: 'family'
                 });
             }
         } catch (error) {
@@ -202,14 +230,38 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
 
     return (
         <div className="space-y-8 pb-24 min-h-screen">
-            <div className="flex justify-end">
+            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+                <div className="w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                    <div className="flex space-x-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-max md:w-auto mx-auto md:mx-0">
+                        <button
+                            onClick={() => setScopeFilter('all')}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent whitespace-nowrap active:scale-95 ${scopeFilter === 'all' ? 'bg-white dark:bg-slate-700 shadow-md text-indigo-600 border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        >
+                            Todos
+                        </button>
+                        <button
+                            onClick={() => setScopeFilter('family')}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent whitespace-nowrap active:scale-95 ${scopeFilter === 'family' ? 'bg-white dark:bg-slate-700 shadow-md text-indigo-600 border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        >
+                            Familiar
+                        </button>
+                        <button
+                            onClick={() => setScopeFilter('personal')}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border border-transparent whitespace-nowrap active:scale-95 ${scopeFilter === 'personal' ? 'bg-white dark:bg-slate-700 shadow-md text-cyan-600 border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        >
+                            Personal
+                        </button>
+                    </div>
+                </div>
+
                 <Button
                     onClick={() => setIsCreating(true)}
                     variant={isCreating ? 'ghost' : 'primary'}
-                    className={isCreating ? 'hidden' : ''}
+                    className={`${isCreating ? 'hidden' : ''} shadow-xl shadow-indigo-500/20`}
                 >
-                    <Plus size={18} className="mr-2" />
-                    Nuevo Presupuesto
+                    <Plus size={18} className="md:mr-2" />
+                    <span className="hidden md:inline">Nuevo Presupuesto</span>
+                    <span className="md:hidden">Nuevo</span>
                 </Button>
             </div>
 
@@ -222,6 +274,25 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                         <Typography variant="h3">Definir Límite de Gasto</Typography>
                     </div>
                     <form onSubmit={handleCreateBudget} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="md:col-span-2 flex justify-center pb-4">
+                            <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl w-full md:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setNewBudget({ ...newBudget, scope: 'family' })}
+                                    className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all border border-transparent ${newBudget.scope === 'family' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                >
+                                    Familiar (Global)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setNewBudget({ ...newBudget, scope: 'personal' })}
+                                    className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all border border-transparent ${newBudget.scope === 'personal' ? 'bg-white dark:bg-slate-700 text-cyan-600 shadow-sm border-slate-200 dark:border-slate-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                >
+                                    Personal (Solo yo)
+                                </button>
+                            </div>
+                        </div>
+
                         <InputField
                             label="Categoría"
                             as="select"
@@ -322,19 +393,26 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 ) : (
                     budgetStats.map(budget => (
                         <Card key={budget.id} variant="elevated" className="group hover:scale-[1.005] transition-all duration-300">
-                            <div className="flex justify-between items-start mb-8">
+                            <div className="flex justify-between items-start mb-4 md:mb-8">
                                 <div className="flex flex-col space-y-2">
                                     <div className="flex items-center space-x-2">
                                         <div className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${budget.period === 'weekly' ? 'bg-blue-500/10 text-blue-600' :
-                                                budget.period === 'biweekly' ? 'bg-emerald-500/10 text-emerald-600' :
-                                                    budget.period === 'custom' ? 'bg-amber-500/10 text-amber-600' :
-                                                        'bg-purple-500/10 text-purple-600'
+                                            budget.period === 'biweekly' ? 'bg-emerald-500/10 text-emerald-600' :
+                                                budget.period === 'custom' ? 'bg-amber-500/10 text-amber-600' :
+                                                    'bg-purple-500/10 text-purple-600'
                                             }`}>
                                             {budget.period === 'weekly' ? 'Semanal' :
                                                 budget.period === 'biweekly' ? 'Quincenal' :
                                                     budget.period === 'custom' ? 'Manual' : 'Mensual'}
                                         </div>
                                         <div className="h-px w-4 bg-foreground/10" />
+                                        <div className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${budget.user_id ? 'bg-cyan-500/10 text-cyan-600' : 'bg-foreground/5 text-foreground/40'}`}>
+                                            {budget.user_id ? 'Personal' : 'Familiar'}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2">
+
                                         <Typography variant="body" className="font-black opacity-30 uppercase tracking-tighter text-[10px]">
                                             {budget.period === 'weekly' ? `S${budget.week_number} / ${budget.year}` :
                                                 budget.period === 'custom' ? budget.year :
@@ -370,7 +448,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                 </Typography>
                             </div>
 
-                            <div className="w-full bg-foreground/[0.03] rounded-full h-4 mb-8 overflow-hidden border border-foreground/[0.05] shadow-inner">
+                            <div className="w-full bg-foreground/[0.03] rounded-full h-3 md:h-4 mb-4 md:mb-8 overflow-hidden border border-foreground/[0.05] shadow-inner">
                                 <div
                                     className={`h-full transition-all duration-1000 shadow-[0_0_10px_rgba(0,0,0,0.1)] ${budget.percent >= 100 ? 'bg-rose-500' :
                                         budget.percent >= 80 ? 'bg-orange-500' :
@@ -380,29 +458,29 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                 />
                             </div>
 
-                            <div className={`flex justify-between items-center p-4 rounded-2xl border transition-colors ${budget.percent >= 100 ? 'bg-rose-500/[0.03] border-rose-500/10' :
+                            <div className={`flex justify-between items-center p-3 md:p-4 rounded-2xl border transition-colors ${budget.percent >= 100 ? 'bg-rose-500/[0.03] border-rose-500/10' :
                                 budget.percent >= 80 ? 'bg-orange-500/[0.03] border-orange-500/10' :
                                     'bg-emerald-500/[0.03] border-emerald-500/10'
                                 }`}>
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-2 md:space-x-3">
                                     {budget.percent >= 100 ? (
-                                        <AlertCircle size={18} className="text-rose-500" />
+                                        <AlertCircle size={16} className="text-rose-500 md:w-[18px] md:h-[18px]" />
                                     ) : budget.percent >= 80 ? (
-                                        <AlertCircle size={18} className="text-orange-500" />
+                                        <AlertCircle size={16} className="text-orange-500 md:w-[18px] md:h-[18px]" />
                                     ) : (
-                                        <CheckCircle2 size={18} className="text-emerald-500" />
+                                        <CheckCircle2 size={16} className="text-emerald-500 md:w-[18px] md:h-[18px]" />
                                     )}
-                                    <Typography variant="body" className={`font-black text-sm ${budget.percent >= 100 ? 'text-rose-600' :
+                                    <Typography variant="body" className={`font-black text-xs md:text-sm ${budget.percent >= 100 ? 'text-rose-600' :
                                         budget.percent >= 80 ? 'text-orange-600' :
                                             'text-emerald-600'
                                         }`}>
-                                        {budget.percent >= 100 ? 'Límite Excedido' : budget.percent >= 80 ? 'Cerca del Límite' : 'Bajo control'}
+                                        {budget.percent >= 100 ? 'Excedido' : budget.percent >= 80 ? 'Cerca' : 'Bien'}
                                     </Typography>
                                 </div>
-                                <Typography variant="body" className="font-bold text-xs opacity-60">
+                                <Typography variant="body" className="font-bold text-[10px] md:text-xs opacity-60">
                                     {budget.remaining >= 0
-                                        ? `${formatCurrency(budget.remaining)} restantes`
-                                        : `${formatCurrency(Math.abs(budget.remaining))} excedidos`}
+                                        ? `${formatCurrency(budget.remaining)}`
+                                        : `${formatCurrency(Math.abs(budget.remaining))}`}
                                 </Typography>
                             </div>
                         </Card>

@@ -10,6 +10,7 @@ export async function payDebt(formData: {
     amount: number;
     description: string;
     type: 'to_pay' | 'to_receive';
+    receiptUrl?: string | null;
 }) {
     const supabase = await createClient()
 
@@ -52,7 +53,8 @@ export async function payDebt(formData: {
         description: `[${formData.type === 'to_pay' ? 'PAGO DEUDA' : 'COBRO DEUDA'}] ${formData.description}`,
         amount: formData.amount,
         type: formData.type === 'to_pay' ? 'expense' : 'income',
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
+        receipt_url: formData.receiptUrl || null
     }).select().single()
 
     if (txError) throw txError

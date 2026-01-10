@@ -65,9 +65,13 @@ export default async function BudgetsPage() {
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
 
     const [budgetsRes, categoriesRes, transactionsRes] = await Promise.all([
-        supabase.from('budgets').select('*, categories(name)').eq('family_id', profile.family_id).eq('year', currentYear),
+        supabase.from('budgets')
+            .select('*, categories(name)')
+            .eq('family_id', profile.family_id)
+            .eq('year', currentYear)
+            .or(`user_id.is.null,user_id.eq.${session.user.id}`),
         supabase.from('categories').select('*'),
-        supabase.from('transactions').select('id, amount, type, category_id, date').eq('family_id', profile.family_id).gte('date', startOfMonth).lte('date', endOfMonth)
+        supabase.from('transactions').select('id, amount, type, category_id, date, user_id').eq('family_id', profile.family_id).gte('date', startOfMonth).lte('date', endOfMonth)
     ]);
 
     return (
@@ -83,6 +87,7 @@ export default async function BudgetsPage() {
                 categories={categoriesRes.data || []}
                 transactions={transactionsRes.data || []}
                 token={session.access_token}
+                userId={session.user.id}
             />
         </main>
     );

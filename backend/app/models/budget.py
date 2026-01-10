@@ -12,6 +12,7 @@ class BudgetBase(BaseModel):
     year: int
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    user_id: Optional[UUID] = None
 
 class BudgetCreate(BudgetBase):
     pass

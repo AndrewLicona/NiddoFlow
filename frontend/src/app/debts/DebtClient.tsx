@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle, Paperclip, Loader2, X } from 'lucide-react';
+import { createClient } from '@/utils/supabase/client';
 
 import { payDebt } from './actions';
 
@@ -18,6 +19,7 @@ interface Debt {
     type: 'to_pay' | 'to_receive';
     status: 'active' | 'paid';
     category_id: string | null;
+    account_id?: string | null;
     due_date: string | null;
 }
 
@@ -60,6 +62,60 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
         account_id: '',
         due_date: ''
     });
+
+    const paymentFormRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (payingDebt && paymentFormRef.current) {
+            paymentFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [payingDebt]);
+
+    // Receipt Upload State
+    const [uploading, setUploading] = useState(false);
+    const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+    const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        setReceiptFile(file);
+        setFilePreview(URL.createObjectURL(file));
+        await uploadReceipt(file);
+    };
+
+    const uploadReceipt = async (file: File) => {
+        setUploading(true);
+        try {
+            const supabase = createClient();
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('receipts')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage.from('receipts').getPublicUrl(filePath);
+            setReceiptUrl(data.publicUrl);
+        } catch (error) {
+            console.error('Error uploading receipt:', error);
+            alert('Error al subir el comprobante.');
+            setReceiptFile(null);
+            setFilePreview(null);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const clearReceipt = () => {
+        setReceiptFile(null);
+        setFilePreview(null);
+        setReceiptUrl(null);
+    };
 
     const stats = useMemo(() => {
         const toPay = debts
@@ -115,7 +171,8 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                 categoryId: paymentData.categoryId,
                 amount: amount,
                 description: paymentData.description || `Pago de deuda: ${payingDebt.description}`,
-                type: payingDebt.type
+                type: payingDebt.type,
+                receiptUrl: receiptUrl
             });
 
             if (result.success) {
@@ -141,6 +198,7 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                     categoryId: '',
                     description: ''
                 });
+                clearReceipt();
             }
         } catch (error) {
             console.error('Error recording payment:', error);
@@ -279,72 +337,146 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
             )}
 
             {payingDebt && (
-                <Card variant="glass" className="animate-in fade-in zoom-in-95 duration-300 border-emerald-500/10 shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-5">
-                        <CheckCircle size={120} />
-                    </div>
-                    <div className="flex items-center space-x-3 mb-8">
-                        <div className="p-2 bg-emerald-500/10 rounded-xl">
-                            <CheckCircle size={20} className="text-emerald-600" />
+                <div ref={paymentFormRef} className="scroll-mt-32">
+                    <Card variant="glass" className="animate-in fade-in zoom-in-95 duration-300 border-emerald-500/10 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5">
+                            <CheckCircle size={120} />
                         </div>
-                        <div>
-                            <Typography variant="h3">Registrar Pago / Abono</Typography>
-                            <Typography variant="small" className="opacity-50">Deuda: {payingDebt.description}</Typography>
+                        <div className="flex items-center space-x-3 mb-8">
+                            <div className="p-2 bg-emerald-500/10 rounded-xl">
+                                <CheckCircle size={20} className="text-emerald-600" />
+                            </div>
+                            <div>
+                                <Typography variant="h3">Registrar Pago / Abono</Typography>
+                                <Typography variant="small" className="opacity-50">Deuda: {payingDebt.description}</Typography>
+                            </div>
                         </div>
-                    </div>
-                    <form onSubmit={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                        <InputField
-                            label="Monto del Pago"
-                            type="number"
-                            placeholder="0.00"
-                            value={paymentData.amount}
-                            onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
-                            required
-                        />
-                        <InputField
-                            label="Cuenta de Origen/Destino"
-                            as="select"
-                            value={paymentData.accountId}
-                            onChange={(e) => setPaymentData({ ...paymentData, accountId: e.target.value })}
-                            required
-                        >
-                            <option value="">Selecciona una cuenta</option>
-                            {accounts.map(acc => (
-                                <option key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.balance)})</option>
-                            ))}
-                        </InputField>
-                        <InputField
-                            label="Categoría (Opcional)"
-                            as="select"
-                            value={paymentData.categoryId}
-                            onChange={(e) => setPaymentData({ ...paymentData, categoryId: e.target.value })}
-                        >
-                            <option value="">Automática (Abonos/Pagos)</option>
-                            {categories
-                                .filter(c => payingDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
-                                .map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))
-                            }
-                        </InputField>
-                        <div className="md:col-span-2">
+                        <form onSubmit={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
                             <InputField
-                                label="Descripción (Opcional)"
-                                placeholder="Ej: Abono quincenal..."
-                                value={paymentData.description}
-                                onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
+                                label="Monto del Pago"
+                                type="number"
+                                placeholder="0.00"
+                                value={paymentData.amount}
+                                onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                                required
                             />
-                        </div>
-                        <div className="flex justify-end space-x-4 md:col-span-2 pt-4">
-                            <Button type="button" variant="ghost" onClick={() => setPayingDebt(null)} className="text-foreground/40 hover:text-foreground">
-                                Cancelar
-                            </Button>
-                            <Button type="submit" variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
-                                Confirmar Pago
-                            </Button>
-                        </div>
-                    </form>
-                </Card>
+                            <InputField
+                                label="Cuenta de Origen/Destino"
+                                as="select"
+                                value={paymentData.accountId}
+                                onChange={(e) => setPaymentData({ ...paymentData, accountId: e.target.value })}
+                                required
+                                disabled={!!payingDebt.account_id}
+                            >
+                                <option value="">Selecciona una cuenta</option>
+                                {accounts.map(acc => (
+                                    <option key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.balance)})</option>
+                                ))}
+                            </InputField>
+                            {!!payingDebt.account_id && (
+                                <div className="flex items-center space-x-2 text-indigo-500 text-xs mt-1 md:col-span-1">
+                                    <AlertCircle size={12} />
+                                    <span className="font-bold">Cuenta vinculada obligatoria</span>
+                                </div>
+                            )}
+                            <InputField
+                                label="Categoría (Opcional)"
+                                as="select"
+                                value={paymentData.categoryId}
+                                onChange={(e) => setPaymentData({ ...paymentData, categoryId: e.target.value })}
+                            >
+                                <option value="">Automática (Abonos/Pagos)</option>
+                                {categories
+                                    .filter(c => payingDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                    .map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))
+                                }
+                            </InputField>
+                            <div className="md:col-span-2">
+                                <InputField
+                                    label="Descripción (Opcional)"
+                                    placeholder="Ej: Abono quincenal..."
+                                    value={paymentData.description}
+                                    onChange={(e) => setPaymentData({ ...paymentData, description: e.target.value })}
+                                />
+                            </div>
+
+                            {/* Receipt Upload */}
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-foreground mb-2">
+                                    Comprobante / Recibo (Opcional)
+                                </label>
+
+                                {!filePreview ? (
+                                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-foreground/10 border-dashed rounded-2xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group cursor-pointer relative">
+                                        <input
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                            onChange={handleFileChange}
+                                            disabled={uploading}
+                                        />
+                                        <div className="space-y-2 text-center">
+                                            <div className="mx-auto h-12 w-12 text-foreground/20 group-hover:text-emerald-500 transition-colors flex items-center justify-center rounded-full bg-foreground/5 group-hover:bg-emerald-500/10">
+                                                {uploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
+                                            </div>
+                                            <div className="flex text-sm text-foreground/60 justify-center">
+                                                <span className="relative cursor-pointer rounded-md font-bold text-emerald-600 hover:text-emerald-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                                    {uploading ? 'Subiendo...' : 'Sube un archivo'}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-foreground/40">
+                                                PNG, JPG, PDF hasta 5MB
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="relative mt-2 rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4 flex items-center justify-between">
+                                        <div className="flex items-center space-x-4">
+                                            <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center overflow-hidden border border-foreground/5">
+                                                {receiptFile?.type.startsWith('image/') ? (
+                                                    <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <Paperclip className="text-blue-500" size={24} />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <Typography variant="body" className="font-bold text-foreground text-sm truncate max-w-[200px]">
+                                                    {receiptFile?.name}
+                                                </Typography>
+                                                <Typography variant="small" className="text-green-600 font-bold text-[10px] uppercase flex items-center mt-1">
+                                                    {uploading ? (
+                                                        <><Loader2 size={10} className="mr-1 animate-spin" /> Subiendo...</>
+                                                    ) : (
+                                                        <>Listo para guardar</>
+                                                    )}
+                                                </Typography>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={clearReceipt}
+                                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                                        >
+                                            <X size={18} />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex justify-end space-x-4 md:col-span-2 pt-4">
+                                <Button type="button" variant="ghost" onClick={() => setPayingDebt(null)} className="text-foreground/40 hover:text-foreground">
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
+                                    Confirmar Pago
+                                </Button>
+                            </div>
+                        </form>
+                    </Card>
+                </div>
             )}
 
             <div className="space-y-4">
@@ -446,7 +578,11 @@ export default function DebtClient({ initialDebts, accounts, categories, token }
                                                 size="sm"
                                                 onClick={() => {
                                                     setPayingDebt(debt);
-                                                    setPaymentData({ ...paymentData, amount: debt.remaining_amount.toString() });
+                                                    setPaymentData({
+                                                        ...paymentData,
+                                                        amount: debt.remaining_amount.toString(),
+                                                        accountId: debt.account_id || accounts[0]?.id || ''
+                                                    });
                                                 }}
                                                 className="flex-1 md:flex-none border-emerald-500/20 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl shadow-lg shadow-emerald-500/5 transition-all font-black text-xs h-10 px-6"
                                             >

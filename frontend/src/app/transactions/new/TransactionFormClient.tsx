@@ -23,6 +23,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
     const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [receiptFile, setReceiptFile] = useState<File | null>(null);
+    const [type, setType] = useState<string>('expense');
 
     const incomeCategories = categories.filter((c: any) => c.type === 'income');
     const expenseCategories = categories.filter((c: any) => c.type === 'expense');
@@ -99,9 +100,12 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             label="Naturaleza del Flujo"
                             name="type"
                             as="select"
+                            value={type}
+                            onChange={(e) => setType(e.target.value)}
                         >
                             <option value="expense">Gasto (Egreso)</option>
                             <option value="income">Ingreso (Entrada)</option>
+                            <option value="transfer">Transferencia</option>
                         </InputField>
                     </div>
 
@@ -142,6 +146,23 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             </div>
                         )}
                     </div>
+
+                    {/* Target Account (Only for Transfers) */}
+                    {type === 'transfer' && (
+                        <div className="md:col-span-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <InputField
+                                label="Cuenta Destino"
+                                name="targetAccountId"
+                                as="select"
+                                required
+                            >
+                                <option value="">Selecciona cuenta destino</option>
+                                {accounts.map((a: any) => (
+                                    <option key={a.id} value={a.id}>{a.name} ({formatCurrency(a.balance)})</option>
+                                ))}
+                            </InputField>
+                        </div>
+                    )}
 
                     {/* Category */}
                     <div className="md:col-span-1">

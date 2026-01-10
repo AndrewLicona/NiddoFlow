@@ -28,7 +28,11 @@ async def create_debt(debt: DebtCreate, user = Depends(get_current_user)):
     family_id = profile_res.data[0]['family_id']
     
     data = debt.model_dump()
-    account_id = data.pop('account_id', None)
+    # Ensure account_id is string if present, and keep it in data for DB insertion
+    account_id = data.get('account_id')
+    if account_id:
+        data['account_id'] = str(account_id)
+        
     data['family_id'] = family_id
     if data['due_date']:
         data['due_date'] = data['due_date'].isoformat()
