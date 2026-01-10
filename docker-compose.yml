@@ -25,7 +25,6 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - CORS_ORIGINS=https://niddoflow.andrewlamaquina.my
     networks:
       - niddoflow-network
