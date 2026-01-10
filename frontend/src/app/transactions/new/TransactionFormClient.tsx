@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { createTransaction } from '../actions';
+import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
 import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
@@ -276,14 +277,14 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             Cancelar
                         </Button>
                     </Link>
-                    <Button
-                        type="submit"
-                        disabled={uploading}
+                    <SubmitButton
+                        variant="primary"
                         className="order-1 md:order-2 w-full md:w-auto px-10 shadow-xl shadow-blue-500/10"
+                        icon={<Save size={18} />}
+                        loadingText="Guardando..."
                     >
-                        {uploading ? <Loader2 className="mr-2 animate-spin" /> : <Save size={18} className="mr-2" />}
-                        {uploading ? 'Subiendo...' : 'Guardar Transacción'}
-                    </Button>
+                        Guardar Transacción
+                    </SubmitButton>
                 </div>
             </form>
         </Card>

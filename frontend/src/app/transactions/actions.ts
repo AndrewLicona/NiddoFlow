@@ -52,8 +52,8 @@ export async function createTransaction(formData: FormData) {
         throw new Error('Failed to create transaction')
     }
 
-    revalidatePath('/transactions')
-    revalidatePath('/') // Update dashboard balance presumably
+    // Optimized: Only revalidate the pages that need it most
+    revalidatePath('/', 'layout')
     redirect('/transactions')
 }
 export async function deleteTransaction(transactionId: string) {

@@ -37,7 +37,6 @@ export async function createAccount(formData: FormData) {
         throw new Error('Failed to create account')
     }
 
-    revalidatePath('/transactions/new') // Update transaction form options
-    revalidatePath('/')
-    redirect('/transactions/new') // Go back to where we likely came from
+    revalidatePath('/', 'layout')
+    redirect('/transactions/new')
 }

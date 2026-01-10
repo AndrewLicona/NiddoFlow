@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createAccount } from '../actions'
+import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
 import { PageHeader } from '@/components/ui/molecules/PageHeader';
 import { Card } from '@/components/ui/molecules/Card';
 import { Button } from '@/components/ui/atoms/Button';
@@ -65,9 +66,9 @@ export default async function NewAccountPage() {
                                 Cancelar
                             </Button>
                         </Link>
-                        <Button type="submit">
+                        <SubmitButton>
                             Crear Cuenta
-                        </Button>
+                        </SubmitButton>
                     </div>
                 </form>
             </Card>

@@ -3,6 +3,7 @@ from typing import List
 from app.dependencies import get_current_user
 from app.models.account import AccountCreate, AccountResponse
 from app.db.supabase import supabase
+from datetime import datetime
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -27,6 +28,22 @@ async def create_account(account: AccountCreate, user = Depends(get_current_user
     
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create account")
+    
+    account_id = res.data[0]['id']
+    
+    # 3. Create "Saldo Inicial" transaction if balance > 0
+    if account.balance > 0:
+        tx_data = {
+            "family_id": family_id,
+            "user_id": str(user.id),
+            "account_id": str(account_id),
+            "category_id": None, # Could be a specific "Adjustment" category if we had one
+            "description": "Saldo Inicial",
+            "amount": account.balance,
+            "type": "income",
+            "date": datetime.utcnow().isoformat()
+        }
+        supabase.table("transactions").insert(tx_data).execute()
         
     return res.data[0]
 
