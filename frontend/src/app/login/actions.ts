@@ -58,7 +58,10 @@ export async function signout() {
 export async function loginWithGoogle() {
     const supabase = await createClient()
     const headerList = await headers()
-    const origin = headerList.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const host = headerList.get('x-forwarded-host') || headerList.get('host')
+    const proto = headerList.get('x-forwarded-proto') || 'https'
+    const origin = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : headerList.get('origin') || 'http://localhost:3000')
+
 
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
