@@ -12,6 +12,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
     "date-fns": "^4.1.0",
+    "driver.js": "^1.4.0",
     "framer-motion": "^12.24.12",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",

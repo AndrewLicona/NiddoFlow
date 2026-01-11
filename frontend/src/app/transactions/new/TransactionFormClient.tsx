@@ -38,8 +38,18 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
 
     const incomeCategories = categories.filter((c: Category) => c.type === 'income');
     const expenseCategories = categories.filter((c: Category) => c.type === 'expense');
+    const [date, setDate] = useState('');
+
+    React.useEffect(() => {
+        const now = new Date();
+        const localIso = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+            .toISOString()
+            .slice(0, 16);
+        setDate(localIso);
+    }, []);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+
         if (!e.target.files || e.target.files.length === 0) {
             return;
         }
@@ -269,7 +279,8 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             name="date"
                             type="datetime-local"
                             required
-                            defaultValue={new Date().toISOString().slice(0, 16)}
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
                         />
                     </div>
                 </div>

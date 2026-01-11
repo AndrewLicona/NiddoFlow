@@ -20,6 +20,7 @@ import {
     TrendingDown,
     FileText
 } from 'lucide-react'
+import OnboardingTour from '@/components/ui/organisms/OnboardingTour'
 
 
 interface Budget {
@@ -155,30 +156,33 @@ export default async function DashboardPage(props: {
 
     return (
         <main className="max-w-6xl mx-auto p-4 md:p-8 pt-10 md:pt-8 space-y-6 md:space-y-10 min-h-screen pb-24">
-            <PageHeader
-                title={`Hola, ${displayName?.split(' ')[0]}`}
-                description="Aquí tienes un resumen de tu armonía financiera hoy."
-                showProfile
-                userProfile={profile}
-                actions={
-                    <div className="flex space-x-2">
-                        <Link href="/reports">
-                            <Button variant="outline" size="sm" className="rounded-full h-10 w-10 p-0 border-foreground/10 text-foreground/60 hover:text-blue-600 hover:border-blue-600/30">
-                                <FileText size={20} />
-                            </Button>
-                        </Link>
-                        <Link href="/transactions/new">
-                            <Button variant="primary" size="sm" className="rounded-full h-10 w-10 p-0 shadow-xl shadow-blue-500/30">
-                                <Plus size={24} />
-                            </Button>
-                        </Link>
-                    </div>
-                }
-            />
+            <OnboardingTour startTour={!profile.onboarding_completed} />
+            <div id="tour-welcome"> {/* Wrapper for PageHeader to attach welcome step */}
+                <PageHeader
+                    title={`Hola, ${displayName?.split(' ')[0]}`}
+                    description="Aquí tienes un resumen de tu armonía financiera hoy."
+                    showProfile
+                    userProfile={profile}
+                    actions={
+                        <div className="flex space-x-2">
+                            <Link href="/reports">
+                                <Button id="tour-reports" variant="outline" size="sm" className="rounded-full h-10 w-10 p-0 border-foreground/10 text-foreground/60 hover:text-blue-600 hover:border-blue-600/30">
+                                    <FileText size={20} />
+                                </Button>
+                            </Link>
+                            <Link href="/transactions/new">
+                                <Button id="tour-new-tx" variant="primary" size="sm" className="rounded-full h-10 w-10 p-0 shadow-xl shadow-blue-500/30">
+                                    <Plus size={24} />
+                                </Button>
+                            </Link>
+                        </div>
+                    }
+                />
+            </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
-                <Card variant="elevated" className="col-span-2 md:col-span-1 relative overflow-hidden group bg-indigo-600 dark:bg-indigo-900 shadow-indigo-500/20 border-none">
+                <Card id="tour-balance" variant="elevated" className="col-span-2 md:col-span-1 relative overflow-hidden group bg-indigo-600 dark:bg-indigo-900 shadow-indigo-500/20 border-none">
                     <div className="absolute top-0 right-0 p-4 text-white opacity-10 group-hover:opacity-20 transition-opacity">
                         <Wallet size={64} strokeWidth={1.5} />
                     </div>
@@ -187,7 +191,7 @@ export default async function DashboardPage(props: {
                         {formatCurrency(totalBalance)}
                     </Typography>
                 </Card>
-                <Card variant="elevated" className="relative overflow-hidden group border-emerald-500/10">
+                <Card id="tour-income" variant="elevated" className="relative overflow-hidden group border-emerald-500/10">
                     <div className="absolute top-0 right-0 p-4 text-emerald-500 opacity-10 group-hover:opacity-20 transition-opacity">
                         <TrendingUp size={64} strokeWidth={1.5} />
                     </div>
@@ -212,13 +216,15 @@ export default async function DashboardPage(props: {
                 <div className="lg:col-span-8 space-y-6 md:space-y-10">
 
                     {/* Smart Feed (Alerts + AI) */}
-                    <SmartFeed
-                        budgetAlerts={budgetAlerts}
-                        debtToPay={debtToPay}
-                        debtToReceive={debtToReceive}
-                        transactions={recentTxRes.data || []}
-                        budgets={currentBudgets}
-                    />
+                    <div id="tour-smartfeed">
+                        <SmartFeed
+                            budgetAlerts={budgetAlerts}
+                            debtToPay={debtToPay}
+                            debtToReceive={debtToReceive}
+                            transactions={recentTxRes.data || []}
+                            budgets={currentBudgets}
+                        />
+                    </div>
 
                     {/* Carousel Section */}
                     <ChartCarousel
