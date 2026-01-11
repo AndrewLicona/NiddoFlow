@@ -97,9 +97,15 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
 
             const { error: uploadError } = await supabase.storage
                 .from('receipts')
-                .upload(filePath, file);
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
 
-            if (uploadError) throw uploadError;
+            if (uploadError) {
+                console.error('Upload error details:', uploadError);
+                throw uploadError;
+            }
 
             const { data } = supabase.storage.from('receipts').getPublicUrl(filePath);
             setReceiptUrl(data.publicUrl);

@@ -382,8 +382,8 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 ) : (
                     budgetStats.map(budget => (
                         <Card key={budget.id} variant="elevated" className="group hover:scale-[1.005] transition-all duration-300">
-                            <div className="flex justify-between items-start mb-4 md:mb-8">
-                                <div className="flex flex-col space-y-2">
+                            <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-4 mb-4 md:mb-8">
+                                <div className="flex flex-col space-y-2 order-2 md:order-1">
                                     <div className="flex items-center space-x-2">
                                         <div className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${budget.period === 'weekly' ? 'bg-blue-500/10 text-blue-600' :
                                             budget.period === 'biweekly' ? 'bg-emerald-500/10 text-emerald-600' :
@@ -400,14 +400,6 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center space-x-2">
-
-                                        <Typography variant="body" className="font-black opacity-30 uppercase tracking-tighter text-[10px]">
-                                            {budget.period === 'weekly' ? `S${budget.week_number} / ${budget.year}` :
-                                                budget.period === 'custom' ? budget.year :
-                                                    `${new Date(0, (budget.month || 1) - 1).toLocaleString('es', { month: 'short' })} ${budget.year}`}
-                                        </Typography>
-                                    </div>
                                     {(budget.start_date && budget.end_date) && (
                                         <div className="flex items-center space-x-2 text-foreground/40">
                                             <Calendar size={12} />
@@ -417,15 +409,19 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                         </div>
                                     )}
                                 </div>
-                                <Typography variant="h2" className="text-foreground/90">{budget.categoryName}</Typography>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-foreground/20 opacity-0 group-hover:opacity-100 group-hover:text-rose-500 bg-foreground/[0.02] hover:bg-rose-500/10 transition-all rounded-2xl p-3"
-                                    onClick={() => handleDeleteBudget(budget.id)}
-                                >
-                                    <Trash2 size={18} />
-                                </Button>
+                                <div className="flex justify-between items-start w-full md:w-auto order-1 md:order-2 md:contents">
+                                    <Typography variant="h3" className="text-foreground/90 md:text-2xl font-black truncate max-w-[200px] md:max-w-none">
+                                        {budget.categoryName}
+                                    </Typography>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-foreground/20 opacity-100 md:opacity-0 group-hover:opacity-100 group-hover:text-rose-500 bg-foreground/[0.02] hover:bg-rose-500/10 transition-all rounded-2xl p-2 md:p-3"
+                                        onClick={() => handleDeleteBudget(budget.id)}
+                                    >
+                                        <Trash2 size={18} />
+                                    </Button>
+                                </div>
                             </div>
 
                             <div className="flex justify-between items-end mb-3">
