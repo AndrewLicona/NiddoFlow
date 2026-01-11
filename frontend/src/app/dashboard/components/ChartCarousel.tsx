@@ -5,13 +5,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, TrendingUp, PieChart, BarChart3, LineChart, AreaChart, Users } from 'lucide-react'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { Card } from '@/components/ui/molecules/Card'
-import FinanceTrendChart from '../charts/FinanceTrendChart'
-import ExpenseDistributionChart from '../charts/ExpenseDistributionChart'
-import BalanceLineChart from '../charts/BalanceLineChart'
-import IncomeExpenseBarChart from '../charts/IncomeExpenseBarChart'
-import CategoryBarChart from '../charts/CategoryBarChart'
-import ExpensesAreaChart from '../charts/ExpensesAreaChart'
-import UserExpensesPieChart from '../charts/UserExpensesPieChart'
+import dynamic from 'next/dynamic'
+
+const FinanceTrendChart = dynamic(() => import('../charts/FinanceTrendChart'), {
+    ssr: false,
+    loading: () => <div className="w-full h-full animate-pulse bg-foreground/[0.02] rounded-3xl" />
+})
+const ExpenseDistributionChart = dynamic(() => import('../charts/ExpenseDistributionChart'), { ssr: false })
+const BalanceLineChart = dynamic(() => import('../charts/BalanceLineChart'), { ssr: false })
+const IncomeExpenseBarChart = dynamic(() => import('../charts/IncomeExpenseBarChart'), { ssr: false })
+const CategoryBarChart = dynamic(() => import('../charts/CategoryBarChart'), { ssr: false })
+const ExpensesAreaChart = dynamic(() => import('../charts/ExpensesAreaChart'), { ssr: false })
+const UserExpensesPieChart = dynamic(() => import('../charts/UserExpensesPieChart'), { ssr: false })
+
 
 interface Transaction {
     id: string;
@@ -33,13 +39,20 @@ interface Profile {
     full_name: string | null;
 }
 
+interface TrendPoint {
+    date: string;
+    income: number;
+    expense: number;
+}
+
 interface Props {
     transactions: Transaction[]
     accounts: Account[]
     profiles: Profile[]
+    trends?: TrendPoint[] // Support pre-aggregated trends
 }
 
-export default function ChartCarousel({ transactions, accounts, profiles }: Props) {
+export default function ChartCarousel({ transactions, accounts, profiles, trends }: Props) {
     const [page, setPage] = useState(0)
 
     // Prepare distribution data for the specific component that needs it in a special format
@@ -62,7 +75,7 @@ export default function ChartCarousel({ transactions, accounts, profiles }: Prop
             id: 'trend',
             title: 'Tendencias (Ingresos vs Gastos)',
             icon: <TrendingUp className="text-indigo-500" size={24} />,
-            component: <FinanceTrendChart transactions={transactions} />
+            component: <FinanceTrendChart data={trends} transactions={transactions} />
         },
         {
             id: 'distribution',

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import ChartCarousel from './dashboard/components/ChartCarousel'
 import SmartFeed from './dashboard/components/SmartFeed'
 import { formatCurrency } from '@/utils/format'
-import { subMonths, startOfMonth } from 'date-fns'
 import { getWeekNumber, getStartOfWeek } from '@/utils/date'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { Button } from '@/components/ui/atoms/Button'
@@ -17,7 +16,6 @@ import {
     ArrowDownCircle,
     Plus,
     ChevronRight,
-
     TrendingUp,
     TrendingDown,
     FileText
@@ -38,13 +36,15 @@ interface Budget {
     end_date?: string
 }
 
-interface Account {
-    id: string;
-    balance: number;
-    type: string;
-    name: string;
-    family_id?: string;
-    user_id?: string;
+
+interface Transaction {
+    id?: string;
+    amount: number;
+    type: 'income' | 'expense' | 'transfer';
+    date: string;
+    description?: string;
+    category_id?: string;
+    categories?: { name: string } | null;
 }
 
 export default async function DashboardPage(props: {
@@ -61,8 +61,10 @@ export default async function DashboardPage(props: {
 
     const supabase = await createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) redirect('/login')
+
     const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -79,32 +81,38 @@ export default async function DashboardPage(props: {
     const startOfMonthISO = new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
     const endOfMonthISO = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
 
-    // Fetch 6 months of history for trends
-    const historyStart = startOfMonth(subMonths(today, 6)).toISOString()
 
-    const [accountsRes, recentTxRes, monthlyStatsRes, budgetsRes, debtsRes, historyRes, profilesRes] = await Promise.all([
+    const [accountsRes, recentTxRes, monthlyStatsRes, budgetsRes, debtsRes, statsRes, profilesRes] = await Promise.all([
         supabase.from('accounts').select('*').or(`family_id.eq.${profile.family_id},user_id.eq.${user.id}`),
         supabase.from('transactions').select('*, categories(name, icon)').eq('family_id', profile.family_id).order('date', { ascending: false }).limit(5),
         supabase.from('transactions').select('amount, type, category_id, date, categories(name)').eq('family_id', profile.family_id).gte('date', startOfMonthISO).lte('date', endOfMonthISO),
         supabase.from('budgets').select('*, categories(name)').eq('family_id', profile.family_id).eq('year', currentYear),
         supabase.from('debts').select('*').eq('family_id', profile.family_id).eq('status', 'active'),
-        supabase.from('transactions').select('*, categories(name)').eq('family_id', profile.family_id).gte('date', historyStart).order('date', { ascending: true }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/dashboard`, {
+            headers: { 'Authorization': `Bearer ${session?.access_token}` },
+            next: { revalidate: 3600 }
+        }).then(res => res.json()),
         supabase.from('profiles').select('id, full_name').eq('family_id', profile.family_id)
     ])
 
-    const historyTxs = historyRes.data || []
-    const familyProfiles = profilesRes.data || []
+    const stats = statsRes || { total_balance: 0, monthly_income: 0, monthly_expense: 0, trends: [] }
+
+
+
+    const totalBalance = stats.total_balance
+    const income = stats.monthly_income
+    const expense = stats.monthly_expense
 
     const allAccounts = accountsRes.data || []
     const myAccounts = allAccounts.filter(acc =>
         acc.family_id === profile.family_id &&
         (acc.type === 'joint' || (acc.type === 'personal' && acc.user_id === user.id))
     )
-    const totalBalance = myAccounts.reduce((acc: number, curr: Account) => acc + Number(curr.balance), 0)
 
-    const monthlyTxs = monthlyStatsRes.data || []
-    const income = monthlyTxs.filter(t => t.type === 'income').reduce((acc, curr) => acc + Number(curr.amount), 0)
-    const expense = monthlyTxs.filter(t => t.type === 'expense').reduce((acc, curr) => acc + Number(curr.amount), 0)
+    const monthlyTxs = (monthlyStatsRes.data as unknown as Transaction[])?.map((t: Transaction, idx: number) => ({
+        ...t,
+        id: t.id || `temp-${idx}`,
+    })) || []
 
     const allBudgets = budgetsRes.data || []
     const now = new Date();
@@ -208,15 +216,16 @@ export default async function DashboardPage(props: {
                         budgetAlerts={budgetAlerts}
                         debtToPay={debtToPay}
                         debtToReceive={debtToReceive}
-                        transactions={historyTxs}
+                        transactions={recentTxRes.data || []}
                         budgets={currentBudgets}
                     />
 
                     {/* Carousel Section */}
                     <ChartCarousel
-                        transactions={historyTxs}
-                        accounts={allAccounts}
-                        profiles={familyProfiles}
+                        trends={stats.trends}
+                        accounts={accountsRes.data || []}
+                        profiles={profilesRes.data || []}
+                        transactions={monthlyTxs} // Reuse monthly for simple charts
                     />
 
                     {/* New Budgets Section */}

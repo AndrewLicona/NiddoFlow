@@ -18,9 +18,13 @@ interface Transaction {
 }
 
 async function getData(token: string) {
-    const res = await fetch(`${API_URL}/transactions/`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' });
+    const res = await fetch(`${API_URL}/transactions/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        next: { revalidate: 60 } // Cache for 1 minute
+    });
     return res.ok ? await res.json() : [];
 }
+
 
 export default async function ReportsPage() {
     const supabase = await createClient();

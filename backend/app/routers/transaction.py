@@ -69,7 +69,13 @@ async def create_transaction(transaction: TransactionCreate, user = Depends(get_
     return res.data[0]
 
 @router.get("/", response_model=List[TransactionResponse])
-async def get_transactions(scope: str = "family", user = Depends(get_current_user)):
+async def get_transactions(
+    scope: str = "family", 
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: Optional[int] = None,
+    user = Depends(get_current_user)
+):
     # 1. Get Family ID
     profile_res = supabase.table("profiles").select("family_id").eq("id", user.id).execute()
     if not profile_res.data or not profile_res.data[0].get('family_id'):
@@ -106,10 +112,16 @@ async def get_transactions(scope: str = "family", user = Depends(get_current_use
         # 1. Get transactions from allowed accounts
         tx_allowed = []
         if valid_account_ids:
-            tx_allowed = supabase.table("transactions").select("*").in_("account_id", valid_account_ids).order("date", desc=True).execute().data or []
+            q = supabase.table("transactions").select("*").in_("account_id", valid_account_ids)
+            if start_date: q = q.gte("date", start_date)
+            if end_date: q = q.lte("date", end_date)
+            tx_allowed = q.order("date", desc=True).execute().data or []
 
         # 2. Get ALL transfers for family
-        tx_transfers = supabase.table("transactions").select("*").eq("family_id", family_id).eq("type", "transfer").order("date", desc=True).execute().data or []
+        q_transfers = supabase.table("transactions").select("*").eq("family_id", family_id).eq("type", "transfer")
+        if start_date: q_transfers = q_transfers.gte("date", start_date)
+        if end_date: q_transfers = q_transfers.lte("date", end_date)
+        tx_transfers = q_transfers.order("date", desc=True).execute().data or []
 
         # 3. Merge
         combined = {t['id']: t for t in tx_allowed}
@@ -118,6 +130,9 @@ async def get_transactions(scope: str = "family", user = Depends(get_current_use
             
         transactions_data = list(combined.values())
         transactions_data.sort(key=lambda x: x['date'], reverse=True)
+        
+        if limit:
+            transactions_data = transactions_data[:limit]
         
     if not transactions_data:
         return []
