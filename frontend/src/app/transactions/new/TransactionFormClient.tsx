@@ -269,7 +269,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             name="date"
                             type="datetime-local"
                             required
-                            defaultValue={new Date().toLocaleTimeString('en-CA', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', 'T')}
+                            defaultValue={new Date().toISOString().slice(0, 16)}
                         />
                     </div>
                 </div>

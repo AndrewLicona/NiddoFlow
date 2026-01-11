@@ -62,13 +62,24 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         category_id: '',
         amount: '',
         period: 'monthly' as 'weekly' | 'biweekly' | 'monthly' | 'custom',
-        month: new Date().getMonth() + 1,
-        week_number: getWeekNumber(new Date()),
-        year: new Date().getFullYear(),
+        month: 1, // Default, will be updated in useEffect
+        week_number: 1,
+        year: 2024,
         start_date: '',
         end_date: '',
         scope: 'family' as 'family' | 'personal'
     });
+
+    // Initialize date-dependent state on client only to avoid hydration mismatch
+    React.useEffect(() => {
+        const now = new Date();
+        setNewBudget(prev => ({
+            ...prev,
+            month: now.getMonth() + 1,
+            week_number: getWeekNumber(now),
+            year: now.getFullYear()
+        }));
+    }, []);
 
     const calculateDates = (period: string, month: number, year: number) => {
         if (period === 'custom') return {};

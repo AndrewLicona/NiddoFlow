@@ -5,6 +5,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_API_URL=https://niddoflow.andrewlamaquina.my/api
+        - NEXT_PUBLIC_BASE_URL=https://niddoflow.andrewlamaquina.my
     container_name: niddoflow-frontend
     restart: unless-stopped
     environment:
