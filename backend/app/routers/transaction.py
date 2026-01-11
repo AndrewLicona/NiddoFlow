@@ -278,31 +278,19 @@ async def export_transactions(
     # Construir la consulta con Strict Scoping
     query = supabase.table("transactions").select("*")
     
+    
     if scope == "personal":
-        # Strict: Solamente cuentas personales del usuario
+        # Personal: Solo transacciones de cuentas personales del usuario
         acc_res = supabase.table("accounts").select("id").eq("user_id", str(user.id)).execute()
         personal_account_ids = [a['id'] for a in (acc_res.data or [])]
         if not personal_account_ids:
-             # Si no tiene cuentas personales, devolver PDF vacío (con cabeceras) o error
-             # Mejor una lista vacía
-             query = query.in_("account_id", [])
+            query = query.in_("account_id", [])
         else:
-             query = query.in_("account_id", personal_account_ids)
+            query = query.in_("account_id", personal_account_ids)
     else:
-        # Family scope: Todo lo de la familia MENOS cuentas personales de OTROS
-        all_accounts_res = supabase.table("accounts").select("id, user_id").eq("family_id", family_id).execute()
-        all_accounts = all_accounts_res.data or []
-        
-        valid_account_ids = []
-        for acc in all_accounts:
-            acc_user_id = acc.get('user_id')
-            if not acc_user_id or str(acc_user_id) == str(user.id):
-                valid_account_ids.append(acc['id'])
-        
-        if not valid_account_ids:
-             query = query.in_("account_id", [])
-        else:
-             query = query.in_("account_id", valid_account_ids)
+        # Family: TODAS las transacciones de la familia (sin filtro adicional por cuenta)
+        # El filtro por family_id se aplica indirectamente ya que las cuentas pertenecen a la familia
+        query = query.eq("family_id", family_id)
 
     if start_date:
         query = query.gte("date", start_date)

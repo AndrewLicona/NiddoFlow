@@ -34,7 +34,7 @@ export async function payDebt(formData: {
     // A. Create Transaction
     let effectiveCategoryId = formData.categoryId;
     if (!effectiveCategoryId) {
-        const defaultCatName = formData.type === 'to_pay' ? 'Pagos de Deuda' : 'Cobros de Deuda';
+        const defaultCatName = formData.type === 'to_pay' ? 'Préstamos Otorgados' : 'Préstamos Recibidos';
         const { data: defaultCat } = await supabase
             .from('categories')
             .select('id')

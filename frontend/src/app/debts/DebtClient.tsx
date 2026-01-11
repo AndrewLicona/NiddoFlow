@@ -259,8 +259,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             name="type"
                             onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as 'to_pay' | 'to_receive' })}
                         >
-                            <option value="to_pay">Debio pagar (Egreso pendiente)</option>
-                            <option value="to_receive">Me deben (Ingreso pendiente)</option>
+                            <option value="to_pay">Préstamo Otorgado (Yo presté dinero - Salida)</option>
+                            <option value="to_receive">Préstamo Recibido (Me prestaron - Entrada)</option>
                         </InputField>
                         <InputField
                             label="Categoría (Opcional)"

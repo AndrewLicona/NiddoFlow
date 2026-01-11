@@ -613,7 +613,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                         isLoading={isExporting}
                                     >
                                         <Download size={18} className="mr-2" />
-                                        Descargar CSV
+                                        Descargar PDF
                                     </Button>
                                 </div>
                             </Card>
