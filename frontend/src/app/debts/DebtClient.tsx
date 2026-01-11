@@ -56,6 +56,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
         categoryId: '',
         description: ''
     });
+    const [recordType, setRecordType] = useState<'loan' | 'invoice'>('loan');
     const [newDebt, setNewDebt] = useState({
         description: '',
         total_amount: '',
@@ -142,6 +143,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
             await createDebt(formData);
             setIsCreating(false);
             setNewDebt({ description: '', total_amount: '', type: 'to_pay', category_id: '', account_id: '', due_date: '' });
+            setRecordType('loan');
+
         } catch (error) {
             console.error('Error creating debt:', error);
         }
@@ -226,17 +229,38 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
 
             {isCreating && (
                 <Card variant="glass" className="animate-in fade-in slide-in-from-top-4 duration-500 border-indigo-500/10 shadow-2xl">
-                    <div className="flex items-center space-x-3 mb-8">
+                    <div className="flex items-center space-x-3 mb-6">
                         <div className="p-2 bg-indigo-500/10 rounded-xl">
                             <Plus size={20} className="text-indigo-600" />
                         </div>
-                        <Typography variant="h3">Nuevo Registro Financiero</Typography>
+                        <Typography variant="h3">Nuevo Registro</Typography>
                     </div>
+
+                    {/* Mode Toggle */}
+                    <div className="flex bg-foreground/5 p-1 rounded-xl mb-8 md:col-span-2">
+                        <button
+                            type="button"
+                            onClick={() => setRecordType('loan')}
+                            className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${recordType === 'loan' ? 'bg-white text-indigo-600 shadow-sm' : 'text-foreground/50 hover:text-foreground/80'}`}
+                        >
+                            💵 Préstamo (Dinero)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRecordType('invoice')}
+                            className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${recordType === 'invoice' ? 'bg-white text-indigo-600 shadow-sm' : 'text-foreground/50 hover:text-foreground/80'}`}
+                        >
+                            🧾 Cuenta por Pagar (Factura)
+                        </button>
+                    </div>
+
                     <form action={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                        {/* Concept & Amount (Always visible) */}
                         <div className="md:col-span-2">
                             <InputField
-                                label="¿Qué es este registro?"
-                                placeholder="Ej: Préstamo de Juan, Deuda de servicios..."
+                                label="Descripción"
+                                placeholder={recordType === 'loan' ? "Ej: Préstamo a Juan" : "Ej: Factura de Luz, Compra de Muebles"}
                                 value={newDebt.description}
                                 name="description"
                                 onChange={(e) => setNewDebt({ ...newDebt, description: e.target.value })}
@@ -252,6 +276,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             onChange={(e) => setNewDebt({ ...newDebt, total_amount: e.target.value })}
                             required
                         />
+
+                        {/* Dynamics based on Mode */}
                         <InputField
                             label="Naturaleza"
                             as="select"
@@ -259,24 +285,39 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             name="type"
                             onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as 'to_pay' | 'to_receive' })}
                         >
-                            <option value="to_pay">Préstamo Otorgado (Yo presté dinero - Salida)</option>
-                            <option value="to_receive">Préstamo Recibido (Me prestaron - Entrada)</option>
+                            {recordType === 'loan' ? (
+                                <>
+                                    <option value="to_pay">Préstamo Otorgado (Salida - Yo presté)</option>
+                                    <option value="to_receive">Préstamo Recibido (Entrada - Me prestaron)</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="to_pay">Debo Pagar (Egreso futuro)</option>
+                                    <option value="to_receive">Me Deben (Ingreso futuro)</option>
+                                </>
+                            )}
                         </InputField>
-                        <InputField
-                            label="Categoría (Opcional)"
-                            as="select"
-                            value={newDebt.category_id}
-                            name="category_id"
-                            onChange={(e) => setNewDebt({ ...newDebt, category_id: e.target.value })}
-                        >
-                            <option value="">Automática (Préstamos)</option>
-                            {categories
-                                .filter(c => newDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
-                                .map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                ))
-                            }
-                        </InputField>
+
+                        {/* Category - Only for Invoice Mode */}
+                        {recordType === 'invoice' && (
+                            <InputField
+                                label="Categoría"
+                                as="select"
+                                value={newDebt.category_id}
+                                name="category_id"
+                                onChange={(e) => setNewDebt({ ...newDebt, category_id: e.target.value })}
+                                required
+                            >
+                                <option value="">Selecciona una categoría</option>
+                                {categories
+                                    .filter(c => newDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                    .map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))
+                                }
+                            </InputField>
+                        )}
+
                         <InputField
                             label="Cuenta del Movimiento (Opcional)"
                             as="select"
@@ -351,6 +392,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                 <div className="flex items-center space-x-2 text-indigo-500 text-xs mt-1 md:col-span-1">
                                     <AlertCircle size={12} />
                                     <span className="font-bold">Cuenta vinculada obligatoria</span>
+                                    {/* Critical Fix: Hidden input ensures accountId is submitted even if disabled */}
+                                    <input type="hidden" name="accountId" value={paymentData.accountId} />
                                 </div>
                             )}
                             <InputField

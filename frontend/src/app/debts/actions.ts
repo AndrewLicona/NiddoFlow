@@ -105,6 +105,34 @@ export async function createDebt(formData: FormData) {
         due_date: formData.get('due_date') || null
     };
 
+    // Auto-assign category for Loans if not provided
+    if (!data.category_id) {
+        const supabase = await createClient();
+        const defaultCatName = data.type === 'to_pay' ? 'Préstamos Otorgados' : 'Préstamos Recibidos';
+
+        // Try to find the default category
+        const { data: defaultCat } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', defaultCatName)
+            .eq('is_default', true)
+            .single();
+
+        if (defaultCat) {
+            data.category_id = defaultCat.id;
+        } else {
+            // Fallback: Check if it exists as non-default or creating it might be too much for this simple action, 
+            // but payDebt does strict checking. Let's try to find any category with that name.
+            const { data: anyCat } = await supabase
+                .from('categories')
+                .select('id')
+                .eq('name', defaultCatName)
+                .single();
+
+            if (anyCat) data.category_id = anyCat.id;
+        }
+    }
+
     const res = await fetch(`${NEXT_PUBLIC_API_URL}/debts/`, {
         method: 'POST',
         headers,
