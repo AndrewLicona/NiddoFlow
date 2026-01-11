@@ -42,9 +42,7 @@ interface Props {
     token: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-export default function DebtClient({ initialDebts, accounts, categories, token }: Props) {
+export default function DebtClient({ initialDebts, accounts, categories }: Props) {
     const [debts, setDebts] = useState<Debt[]>(initialDebts);
 
     useEffect(() => {

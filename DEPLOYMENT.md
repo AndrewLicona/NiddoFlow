@@ -160,7 +160,10 @@ git pull origin main
 docker compose down
 docker compose --env-file .env.production up -d --build
 ```
-
+git fetch origin main
+git reset --hard origin/main
+docker compose down
+docker compose --env-file .env.production up -d --build
 ---
 
 ## 📝 Comandos Útiles
