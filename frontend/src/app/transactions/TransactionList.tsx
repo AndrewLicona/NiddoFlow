@@ -255,7 +255,7 @@ const TransactionList: React.FC = () => {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-3.5 py-2 rounded-xl text-[10px] whitespace-nowrap font-black uppercase tracking-widest transition-all duration-300 ${filter === f
-                                ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
+                                ? 'bg-card text-primary shadow-sm border border-primary/20'
                                 : 'text-foreground/30 hover:text-foreground/60'
                                 }`}
                         >
@@ -327,14 +327,14 @@ const TransactionList: React.FC = () => {
                                             className={`overflow-hidden transition-all duration-300 ${expandedId === t.id ? 'ring-2 ring-blue-500/10 shadow-2xl scale-[1.01]' : 'hover:shadow-lg hover:scale-[1.005]'}`}
                                         >
                                             <div
-                                                className={`px-4 md:px-6 py-4 md:py-5 cursor-pointer select-none ${editingId === t.id ? 'bg-blue-500/[0.02]' : ''}`}
+                                                className={`px-4 md:px-6 py-4 md:py-5 cursor-pointer select-none ${editingId === t.id ? 'bg-primary/[0.02]' : ''}`}
                                                 onClick={(e) => toggleExpand(t.id, e)}
                                             >
                                                 <div className="flex items-start md:items-center justify-between gap-3">
                                                     <div className="flex items-start md:items-center min-w-0 flex-1">
                                                         <div className={`flex-shrink-0 h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl shadow-sm flex items-center justify-center border-2 transition-all mt-0.5 md:mt-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
                                                             t.type === 'expense' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
-                                                                'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                                                'bg-primary/10 text-primary border-primary/20'
                                                             }`}>
                                                             {t.type === 'income' ? <ArrowDownRight size={18} className="md:w-6 md:h-6" strokeWidth={2.5} /> :
                                                                 t.type === 'expense' ? <ArrowUpLeft size={18} className="md:w-6 md:h-6" strokeWidth={2.5} /> :
@@ -359,7 +359,7 @@ const TransactionList: React.FC = () => {
                                                                         </span>
                                                                     )}
                                                                     {(t.description.includes('[COBRO DEUDA]') || t.description.includes('[PAGO DEUDA]') || t.description.toLowerCase().includes('pago de deuda')) && (
-                                                                        <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0">
+                                                                        <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0">
                                                                             <ArrowLeftRight size={8} className="mr-1 md:w-2.5 md:h-2.5" /> Deuda
                                                                         </span>
                                                                     )}
@@ -529,7 +529,7 @@ const TransactionList: React.FC = () => {
                                                                     )}
                                                                 </div>
                                                                 <div className="flex justify-end space-x-3">
-                                                                    <Button variant="ghost" size="sm" className="text-foreground/40 hover:text-blue-600 hover:bg-blue-50/50 group transition-all rounded-xl" onClick={() => startEditing(t)}>
+                                                                    <Button variant="ghost" size="sm" className="text-foreground/40 hover:text-primary hover:bg-primary/10 group transition-all rounded-xl" onClick={() => startEditing(t)}>
                                                                         <Edit2 size={16} className="mr-2 group-hover:scale-110 transition-transform" />
                                                                         Editar
                                                                     </Button>
@@ -557,7 +557,7 @@ const TransactionList: React.FC = () => {
                     ))}
                     {/* Export Modal */}
                     {showExportModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                             <Card variant="elevated" className="w-full max-w-md animate-in fade-in zoom-in duration-300 overflow-visible">
                                 <div className="flex justify-between items-center mb-6">
                                     <Typography variant="h3" className="font-black">Exportar Auditoría</Typography>
@@ -617,20 +617,20 @@ const TransactionList: React.FC = () => {
 
                     {/* Receipt Modal */}
                     {viewingReceipt && (
-                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[101] flex items-center justify-center p-4 md:p-10">
+                        <div className="fixed inset-0 bg-background/90 backdrop-blur-xl z-[101] flex items-center justify-center p-4 md:p-10">
                             <div className="absolute top-6 right-6 flex items-center space-x-4">
                                 <a
                                     href={viewingReceipt}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl transition-all"
+                                    className="bg-card/10 hover:bg-card/20 text-card-foreground p-3 rounded-2xl transition-all"
                                     title="Abrir en nueva pestaña"
                                 >
                                     <ExternalLink size={24} />
                                 </a>
                                 <button
                                     onClick={() => setViewingReceipt(null)}
-                                    className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-2xl transition-all"
+                                    className="bg-card/10 hover:bg-card/20 text-card-foreground p-3 rounded-2xl transition-all"
                                 >
                                     <X size={24} />
                                 </button>

@@ -3,19 +3,15 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Typography } from '@/components/ui/atoms/Typography';
-import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import {
     Wallet,
     ShieldCheck,
-    Smartphone,
     Users,
     ChartPie,
     ArrowRight,
-    Star,
     CheckCircle2,
-    TrendingUp,
-    HeartHandshake
+    TrendingUp
 } from 'lucide-react';
 
 export default function LandingPage() {

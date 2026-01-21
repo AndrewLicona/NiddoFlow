@@ -5,7 +5,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
     // We'll rely on the caller to provide auth headers if this is a server component,
     // or we'll fetch them here if we're in the browser.
-    let headers = (options.headers as Record<string, string>) || {};
+    const headers = (options.headers as Record<string, string>) || {};
 
     if (typeof window !== 'undefined') {
         const { createClient } = await import('@/utils/supabase/client');

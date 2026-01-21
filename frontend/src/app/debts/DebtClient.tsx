@@ -24,19 +24,8 @@ interface Debt {
     due_date: string | null;
 }
 
-interface Account {
-    id: string;
-    name: string;
-    balance: number;
-}
 
-interface Category {
-    id: string;
-    name: string;
-    type: 'income' | 'expense';
-}
-
-export default function DebtClient({ userId }: { userId: string }) {
+export default function DebtClient() {
     const { debts, isLoading: debtsLoading, createDebt: createDebtMutation, deleteDebt: deleteDebtMutation, payDebt: payDebtMutation } = useDebts();
     const { accounts, isLoading: accountsLoading } = useAccounts();
     const { categories, isLoading: categoriesLoading } = useCategories();

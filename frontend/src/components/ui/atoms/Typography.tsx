@@ -11,8 +11,9 @@ export const Typography = ({
     children,
     className = '',
     as: Component = 'p',
-    variant = 'body'
-}: TypographyProps) => {
+    variant = 'body',
+    ...props
+}: TypographyProps & React.HTMLAttributes<HTMLElement>) => {
     const variants = {
         h1: 'text-3xl font-black text-foreground tracking-tight md:text-4xl',
         h2: 'text-2xl font-bold text-foreground tracking-tight',
@@ -23,7 +24,7 @@ export const Typography = ({
     };
 
     return (
-        <Component className={`${variants[variant]} ${className}`}>
+        <Component className={`${variants[variant]} ${className}`} {...props}>
             {children}
         </Component>
     );

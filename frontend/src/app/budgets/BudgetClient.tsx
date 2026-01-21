@@ -12,37 +12,8 @@ import { getWeekNumber, getStartOfWeek } from '@/utils/date';
 import { useBudgets } from '@/hooks/useBudgets';
 import { useCategories } from '@/hooks/useCategories';
 import { useTransactions } from '@/hooks/useTransactions';
-import { useDashboard } from '@/hooks/useDashboard';
 import { Loader2 } from 'lucide-react';
 
-interface Budget {
-    id: string;
-    category_id: string;
-    category_name?: string;
-    amount: number;
-    period: 'weekly' | 'biweekly' | 'monthly' | 'custom';
-    month?: number;
-    week_number?: number;
-    year: number;
-    start_date?: string;
-    end_date?: string;
-    user_id: string | null;
-}
-
-interface Category {
-    id: string;
-    name: string;
-    type: 'income' | 'expense';
-}
-
-interface Transaction {
-    id: string;
-    amount: number;
-    category_id: string | null;
-    date: string;
-    type: 'income' | 'expense' | 'transfer';
-    user_id?: string;
-}
 
 export default function BudgetClient({ userId }: { userId: string }) {
     const { budgets, isLoading: budgetsLoading, createBudget: createBudgetMutation, deleteBudget: deleteBudgetMutation } = useBudgets();

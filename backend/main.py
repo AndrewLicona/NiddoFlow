@@ -43,7 +43,7 @@ async def add_process_time_header(request: Request, call_next):
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.100.17:3000",
+    "http://192.168.100.10:3000",
     "https://niddoflow.andrewlamaquina.my"
 ]
 

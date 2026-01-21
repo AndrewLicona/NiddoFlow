@@ -60,6 +60,8 @@ export const metadata: Metadata = {
 import { PWAProvider } from "@/components/providers/PWAProvider";
 import MainLayout from "@/components/providers/MainLayout";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { ColorPaletteProvider } from "@/components/providers/ColorPaletteProvider";
 
 export default function RootLayout({
   children,
@@ -67,15 +69,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryProvider>
           <PWAProvider>
-            <MainLayout>
-              {children}
-            </MainLayout>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem themes={['light', 'dark']}>
+              <ColorPaletteProvider>
+                <MainLayout>
+                  {children}
+                </MainLayout>
+              </ColorPaletteProvider>
+            </ThemeProvider>
           </PWAProvider>
         </QueryProvider>
       </body>

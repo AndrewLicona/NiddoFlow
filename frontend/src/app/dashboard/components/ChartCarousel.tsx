@@ -24,31 +24,10 @@ const ExpensesAreaChart = dynamic(() => import('../charts/ExpensesAreaChart'), {
 const UserExpensesPieChart = dynamic(() => import('../charts/UserExpensesPieChart'), { ssr: false })
 
 
-interface Transaction {
-    id: string;
-    amount: number;
-    type: 'income' | 'expense' | 'transfer';
-    categories?: { name: string } | null;
-    date: string;
-}
 
-interface Account {
-    id: string;
-    balance: number;
-    type: string;
-    name?: string;
-}
+import { ChartEmptyState } from './ChartEmptyState';
 
-interface Profile {
-    id: string;
-    full_name: string | null;
-}
-
-interface TrendPoint {
-    date: string;
-    income: number;
-    expense: number;
-}
+// ... (existing imports)
 
 export default function ChartCarousel() {
     const { transactions, isLoading: txLoading } = useTransactions();
@@ -58,6 +37,21 @@ export default function ChartCarousel() {
 
     const trends = preparedData.trends;
     const [page, setPage] = useState(0)
+
+    // Helper to check if we have enough data to show interesting charts
+    const hasData = (transactions && transactions.length > 0) || (accounts && accounts.length > 0);
+
+    if (txLoading || accountsLoading || profilesLoading || dashboardLoading) {
+        return (
+            <Card variant="elevated" className="flex items-center justify-center min-h-[450px]">
+                <Loader2 className="animate-spin text-indigo-600" size={40} />
+            </Card>
+        );
+    }
+
+    if (!hasData) {
+        return <ChartEmptyState />;
+    }
 
     // Prepare distribution data for the specific component that needs it in a special format
     const expensesByCategory = transactions

@@ -19,7 +19,7 @@ export default async function DebtsPage() {
                 backHref="/"
             />
 
-            <DebtClient userId={session.user.id} />
+            <DebtClient />
         </main>
     );
 }

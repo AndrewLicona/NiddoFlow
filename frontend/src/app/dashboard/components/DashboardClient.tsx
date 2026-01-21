@@ -5,9 +5,8 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useDebts } from "@/hooks/useDebts";
-import { useCategories } from "@/hooks/useCategories";
 import { formatCurrency } from "@/utils/format";
-import { getWeekNumber, getStartOfWeek } from "@/utils/date";
+import { getWeekNumber } from "@/utils/date";
 import { Typography } from "@/components/ui/atoms/Typography";
 import { Button } from "@/components/ui/atoms/Button";
 import { Card } from "@/components/ui/molecules/Card";
@@ -27,7 +26,7 @@ import Link from "next/link";
 import ChartCarousel from "./ChartCarousel";
 import SmartFeed from "./SmartFeed";
 import OnboardingTour from "@/components/ui/organisms/OnboardingTour";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 
 interface DashboardClientProps {
     user: any;
@@ -39,27 +38,29 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
     const { accounts, isLoading: accountsLoading } = useAccounts();
     const { transactions: recentTransactions, isLoading: txLoading } = useTransactions({ limit: 5 });
     const { budgets, isLoading: budgetsLoading } = useBudgets();
-    const { debts, isLoading: debtsLoading } = useDebts();
-    const { categories } = useCategories();
+    const { isLoading: debtsLoading } = useDebts();
 
     const isLoading = statsLoading || accountsLoading || txLoading || budgetsLoading || debtsLoading;
 
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
-    const currentWeek = getWeekNumber(today);
+    const [today, setToday] = React.useState<Date | null>(null);
+
+    React.useEffect(() => {
+        setToday(new Date());
+    }, []);
+
+    const currentMonth = today ? today.getMonth() + 1 : 0;
+    const currentWeek = today ? getWeekNumber(today) : 0;
 
     // Data processing logic moved here
     const processedBudgets = useMemo(() => {
-        if (!budgets || !stats) return [];
+        if (!today || !budgets || !stats) return [];
 
-        const now = new Date();
         return budgets.filter((b: any) => {
             if (b.start_date && b.end_date) {
                 const start = new Date(b.start_date);
                 const end = new Date(b.end_date);
                 end.setHours(23, 59, 59, 999);
-                return now >= start && now <= end;
+                return today >= start && today <= end;
             }
             if (b.period === "monthly") return b.month === currentMonth;
             if (b.period === "weekly") return b.week_number === currentWeek;
@@ -71,7 +72,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
             // In a real scenario, we'd have an endpoint returning budget progress.
             return { ...b, spent: b.spent || 0, percent: b.percent || 0 };
         });
-    }, [budgets, currentMonth, currentWeek, stats]);
+    }, [budgets, currentMonth, currentWeek, stats, today]);
 
 
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email;
@@ -142,7 +143,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
                 <div className="lg:col-span-8 space-y-6 md:space-y-10">
-                    <SmartFeed />
+                    <SmartFeed currentDate={today} />
 
                     <ChartCarousel />
 

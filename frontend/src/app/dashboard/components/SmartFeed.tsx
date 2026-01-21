@@ -4,7 +4,7 @@ import { Typography } from '@/components/ui/atoms/Typography'
 import { AlertCircle, Brain, TrendingUp, TrendingDown, PieChart, AlertTriangle, Sparkles, Lightbulb, PiggyBank, CalendarClock, Activity } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { useMemo } from 'react'
-import { generateInsights, Budget, Transaction } from '@/utils/analytics'
+import { generateInsights } from '@/utils/analytics'
 import { motion } from 'framer-motion'
 
 import { useTransactions } from '@/hooks/useTransactions';
@@ -12,7 +12,11 @@ import { useBudgets } from '@/hooks/useBudgets';
 import { useDebts } from '@/hooks/useDebts';
 import { Loader2 } from 'lucide-react';
 
-export default function SmartFeed() {
+interface SmartFeedProps {
+    currentDate: Date | null;
+}
+
+export default function SmartFeed({ currentDate }: SmartFeedProps) {
     const { transactions, isLoading: txLoading } = useTransactions();
     const { budgets, isLoading: budgetsLoading } = useBudgets();
     const { debts, isLoading: debtsLoading } = useDebts();
@@ -36,7 +40,10 @@ export default function SmartFeed() {
             .reduce((acc: number, d: any) => acc + d.remaining_amount, 0),
         [debts]);
 
-    const insights = useMemo(() => generateInsights(transactions, budgets), [transactions, budgets])
+    const insights = useMemo(() => {
+        if (!currentDate) return [];
+        return generateInsights(transactions, budgets, currentDate);
+    }, [transactions, budgets, currentDate])
 
     // Combine all "feed items" into a single list
     const feedItems = [

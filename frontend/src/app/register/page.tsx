@@ -2,39 +2,28 @@
 
 import { signup, loginWithGoogle } from '../login/actions'
 import Link from 'next/link'
-import { useState, Suspense, useEffect } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, User, Mail, Lock, ArrowRight, Sparkles, Check, X } from 'lucide-react'
+import { Eye, EyeOff, User, Mail, Lock, Sparkles, Check, X } from 'lucide-react'
 
 function RegisterForm() {
     const searchParams = useSearchParams();
     const error = searchParams.get('error');
     const [showPassword, setShowPassword] = useState(false);
     const [password, setPassword] = useState('');
-    const [strength, setStrength] = useState(0);
-    const [requirements, setRequirements] = useState({
-        length: false,
-        number: false,
-        special: false,
-        uppercase: false,
-    });
+    const requirements = {
+        length: password.length >= 8,
+        number: /[0-9]/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+        uppercase: /[A-Z]/.test(password),
+    };
 
-    useEffect(() => {
-        const reqs = {
-            length: password.length >= 8,
-            number: /[0-9]/.test(password),
-            special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-            uppercase: /[A-Z]/.test(password),
-        };
-        setRequirements(reqs);
-
-        let score = 0;
-        if (reqs.length) score += 25;
-        if (reqs.number) score += 25;
-        if (reqs.special) score += 25;
-        if (reqs.uppercase) score += 25;
-        setStrength(score);
-    }, [password]);
+    let score = 0;
+    if (requirements.length) score += 25;
+    if (requirements.number) score += 25;
+    if (requirements.special) score += 25;
+    if (requirements.uppercase) score += 25;
+    const strength = score;
 
     const getStrengthColor = () => {
         if (strength <= 25) return 'bg-rose-500';

@@ -2,6 +2,10 @@ from datetime import datetime, timedelta
 from app.repositories.base import BaseRepository
 
 class StatsRepository(BaseRepository):
+
+    def get_dashboard_summary_rpc(self, user_id: str):
+        return self.db.rpc("get_dashboard_summary", {"p_user_id": user_id}).execute()
+
     def get_family_accounts(self, family_id: str):
         return self.db.table("accounts").select("balance, type, user_id").eq("family_id", family_id).execute()
 
