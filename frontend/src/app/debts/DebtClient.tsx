@@ -8,8 +8,9 @@ import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
 import { ArrowUpRight, ArrowDownLeft, Plus, Trash2, CheckCircle, Calendar, Info, AlertCircle, Paperclip, Loader2, X, Save } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-import { payDebt, createDebt, deleteDebt } from './actions';
-import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
+import { useDebts } from '@/hooks/useDebts';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useCategories } from '@/hooks/useCategories';
 
 interface Debt {
     id: string;
@@ -35,19 +36,10 @@ interface Category {
     type: 'income' | 'expense';
 }
 
-interface Props {
-    initialDebts: Debt[];
-    accounts: Account[];
-    categories: Category[];
-    token: string;
-}
-
-export default function DebtClient({ initialDebts, accounts, categories }: Props) {
-    const [debts, setDebts] = useState<Debt[]>(initialDebts);
-
-    useEffect(() => {
-        setDebts(initialDebts);
-    }, [initialDebts]);
+export default function DebtClient({ userId }: { userId: string }) {
+    const { debts, isLoading: debtsLoading, createDebt: createDebtMutation, deleteDebt: deleteDebtMutation, payDebt: payDebtMutation } = useDebts();
+    const { accounts, isLoading: accountsLoading } = useAccounts();
+    const { categories, isLoading: categoriesLoading } = useCategories();
     const [isCreating, setIsCreating] = useState(false);
     const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
     const [paymentData, setPaymentData] = useState({
@@ -128,54 +120,66 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
 
     const stats = useMemo(() => {
         const toPay = debts
-            .filter(d => d.type === 'to_pay' && d.status === 'active')
-            .reduce((acc, d) => acc + d.remaining_amount, 0);
+            .filter((d: any) => d.type === 'to_pay' && d.status === 'active')
+            .reduce((acc: number, d: any) => acc + d.remaining_amount, 0);
 
         const toReceive = debts
-            .filter(d => d.type === 'to_receive' && d.status === 'active')
-            .reduce((acc, d) => acc + d.remaining_amount, 0);
+            .filter((d: any) => d.type === 'to_receive' && d.status === 'active')
+            .reduce((acc: number, d: any) => acc + d.remaining_amount, 0);
 
         return { toPay, toReceive };
     }, [debts]);
 
-    const handleCreateDebt = async (formData: FormData) => {
+    const handleCreateDebt = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+
+        const data = {
+            description: formData.get('description') as string,
+            total_amount: parseFloat(formData.get('total_amount') as string),
+            remaining_amount: parseFloat(formData.get('total_amount') as string),
+            type: formData.get('type') as any,
+            category_id: (formData.get('category_id') as string) || null,
+            account_id: (formData.get('account_id') as string) || null,
+            due_date: (formData.get('due_date') as string) || null
+        };
+
         try {
-            await createDebt(formData);
+            await createDebtMutation.mutateAsync(data);
             setIsCreating(false);
             setNewDebt({ description: '', total_amount: '', type: 'to_pay', category_id: '', account_id: '', due_date: '' });
             setRecordType('loan');
-
         } catch (error) {
             console.error('Error creating debt:', error);
         }
     };
 
-    const handleRecordPayment = async (formData: FormData) => {
+    const handleRecordPayment = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
         if (!payingDebt) return;
-        try {
-            const amountValue = formData.get('amount') as string;
-            const amount = parseFloat(amountValue);
+        const formData = new FormData(e.currentTarget);
 
-            const result = await payDebt({
-                debtId: payingDebt.id,
+        try {
+            const amount = parseFloat(formData.get('amount') as string);
+            const data = {
+                amount: amount,
                 accountId: formData.get('accountId') as string,
                 categoryId: formData.get('categoryId') as string,
-                amount: amount,
                 description: (formData.get('description') as string) || `Pago de deuda: ${payingDebt.description}`,
                 type: payingDebt.type,
                 receiptUrl: receiptUrl
-            });
+            };
 
-            if (result.success) {
-                setPayingDebt(null);
-                setPaymentData({
-                    amount: '',
-                    accountId: accounts[0]?.id || '',
-                    categoryId: '',
-                    description: ''
-                });
-                clearReceipt();
-            }
+            await payDebtMutation.mutateAsync({ id: payingDebt.id, data });
+
+            setPayingDebt(null);
+            setPaymentData({
+                amount: '',
+                accountId: accounts[0]?.id || '',
+                categoryId: '',
+                description: ''
+            });
+            clearReceipt();
         } catch (error) {
             console.error('Error recording payment:', error);
         }
@@ -184,11 +188,19 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
     const handleDeleteDebt = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar este registro?')) return;
         try {
-            await deleteDebt(id);
+            await deleteDebtMutation.mutateAsync(id);
         } catch (error) {
             console.error('Error deleting debt:', error);
         }
     };
+
+    if (debtsLoading || accountsLoading || categoriesLoading) {
+        return (
+            <div className="flex items-center justify-center py-24">
+                <Loader2 className="animate-spin text-indigo-600" size={40} />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 pb-32">
@@ -254,7 +266,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                         </button>
                     </div>
 
-                    <form action={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <form onSubmit={handleCreateDebt} className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                         {/* Concept & Amount (Always visible) */}
                         <div className="md:col-span-2">
@@ -310,8 +322,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             >
                                 <option value="">Selecciona una categoría</option>
                                 {categories
-                                    .filter(c => newDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
-                                    .map(cat => (
+                                    .filter((c: any) => newDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                    .map((cat: any) => (
                                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                                     ))
                                 }
@@ -326,7 +338,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             onChange={(e) => setNewDebt({ ...newDebt, account_id: e.target.value })}
                         >
                             <option value="">Ninguna (No crea transacción)</option>
-                            {accounts.map(acc => (
+                            {accounts.map((acc: any) => (
                                 <option key={acc.id} value={acc.id}>{acc.name}</option>
                             ))}
                         </InputField>
@@ -341,9 +353,10 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-foreground/40 hover:text-foreground">
                                 Cancelar
                             </Button>
-                            <SubmitButton icon={<Save size={18} />} className="shadow-lg shadow-indigo-500/20 px-8">
+                            <Button type="submit" isLoading={createDebtMutation.isPending} className="shadow-lg shadow-indigo-500/20 px-8">
+                                <Save size={18} className="mr-2" />
                                 Registrar Ahora
-                            </SubmitButton>
+                            </Button>
                         </div>
                     </form>
                 </Card>
@@ -364,7 +377,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                 <Typography variant="small" className="opacity-50">Deuda: {payingDebt.description}</Typography>
                             </div>
                         </div>
-                        <form action={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                        <form onSubmit={handleRecordPayment} className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
                             <InputField
                                 label="Monto del Pago"
                                 type="number"
@@ -384,7 +397,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                 disabled={!!payingDebt.account_id}
                             >
                                 <option value="">Selecciona una cuenta</option>
-                                {accounts.map(acc => (
+                                {accounts.map((acc: any) => (
                                     <option key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.balance)})</option>
                                 ))}
                             </InputField>
@@ -405,8 +418,8 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                             >
                                 <option value="">Automática (Abonos/Pagos)</option>
                                 {categories
-                                    .filter(c => payingDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
-                                    .map(cat => (
+                                    .filter((c: any) => payingDebt.type === 'to_pay' ? c.type === 'expense' : c.type === 'income')
+                                    .map((cat: any) => (
                                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                                     ))
                                 }
@@ -490,9 +503,10 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                 <Button type="button" variant="ghost" onClick={() => setPayingDebt(null)} className="text-foreground/40 hover:text-foreground">
                                     Cancelar
                                 </Button>
-                                <SubmitButton icon={<CheckCircle size={18} />} variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
+                                <Button type="submit" isLoading={payDebtMutation.isPending} variant="primary" className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 px-8">
+                                    <CheckCircle size={18} className="mr-2" />
                                     Confirmar Pago
-                                </SubmitButton>
+                                </Button>
                             </div>
                         </form>
                     </Card>
@@ -515,7 +529,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                         </Button>
                     </Card>
                 ) : (
-                    debts.map(debt => (
+                    debts.map((debt: any) => (
                         <Card
                             key={debt.id}
                             variant={debt.status === 'paid' ? 'flat' : 'elevated'}
@@ -576,7 +590,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                                         <span className="font-bold text-foreground/60">{formatCurrency(debt.remaining_amount)}</span>
                                                     </div>
                                                     <span className="hidden md:block opacity-30">•</span>
-                                                    <div className="font-bold text-foreground/60 uppercase tracking-widest text-[9px]">{categories.find(c => c.id === debt.category_id)?.name || 'General'}</div>
+                                                    <div className="font-bold text-foreground/60 uppercase tracking-widest text-[9px]">{categories.find((c: any) => c.id === debt.category_id)?.name || 'General'}</div>
                                                     {debt.due_date && (
                                                         <>
                                                             <span className="hidden md:block opacity-30">•</span>
@@ -614,6 +628,7 @@ export default function DebtClient({ initialDebts, accounts, categories }: Props
                                             variant="ghost"
                                             size="sm"
                                             className="bg-foreground/[0.02] text-foreground/20 hover:text-rose-500 hover:bg-rose-500/10 h-10 w-10 flex items-center justify-center rounded-xl md:rounded-2xl flex-shrink-0"
+                                            isLoading={deleteDebtMutation.isPending}
                                             onClick={() => handleDeleteDebt(debt.id)}
                                         >
                                             <Trash2 size={18} />

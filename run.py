@@ -12,11 +12,11 @@ def run_services():
     # Detect OS for terminal execution
     is_windows = os.name == 'nt'
     
-    # Backend command: Activate venv and run uvicorn
+    # Backend command: Use venv uvicorn directly
     if is_windows:
-        backend_cmd = f"cd {backend_dir} && venv\\Scripts\\activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+        backend_cmd = f"cd {backend_dir} && venv\\Scripts\\uvicorn.exe main:app --reload --host 0.0.0.0 --port 8000"
     else:
-        backend_cmd = f"cd {backend_dir} && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+        backend_cmd = f"cd {backend_dir} && ./venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000"
 
     # Frontend command: npm run dev
     frontend_cmd = f"cd {frontend_dir} && npm run dev"

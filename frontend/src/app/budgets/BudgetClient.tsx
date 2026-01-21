@@ -9,8 +9,11 @@ import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
 import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar, Save } from 'lucide-react';
 import { getWeekNumber, getStartOfWeek } from '@/utils/date';
-import { createBudget, deleteBudget } from './actions';
-import { SubmitButton } from '@/components/ui/molecules/SubmitButton';
+import { useBudgets } from '@/hooks/useBudgets';
+import { useCategories } from '@/hooks/useCategories';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useDashboard } from '@/hooks/useDashboard';
+import { Loader2 } from 'lucide-react';
 
 interface Budget {
     id: string;
@@ -41,21 +44,18 @@ interface Transaction {
     user_id?: string;
 }
 
-interface Props {
-    initialBudgets: Budget[];
-    categories: Category[];
-    transactions: Transaction[];
-    token: string;
-    userId: string;
-}
+export default function BudgetClient({ userId }: { userId: string }) {
+    const { budgets, isLoading: budgetsLoading, createBudget: createBudgetMutation, deleteBudget: deleteBudgetMutation } = useBudgets();
+    const { categories, isLoading: categoriesLoading } = useCategories();
 
-export default function BudgetClient({ initialBudgets, categories, transactions, userId }: Props) {
-    const [budgets, setBudgets] = useState<Budget[]>(initialBudgets);
+    const today = useMemo(() => new Date(), []);
+    const startOfMonth = useMemo(() => new Date(today.getFullYear(), today.getMonth(), 1).toISOString(), [today]);
+    const endOfMonth = useMemo(() => new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999).toISOString(), [today]);
 
-    // Sync state with props when server data revalidates
-    React.useEffect(() => {
-        setBudgets(initialBudgets);
-    }, [initialBudgets]);
+    const { transactions, isLoading: txLoading } = useTransactions({
+        start_date: startOfMonth,
+        end_date: endOfMonth
+    });
     const [isCreating, setIsCreating] = useState(false);
     const [scopeFilter, setScopeFilter] = useState<'all' | 'personal' | 'family'>('all');
     const [newBudget, setNewBudget] = useState({
@@ -118,11 +118,11 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
     };
 
     const expenseCategories = useMemo(() =>
-        categories.filter(c => c.type === 'expense'),
+        categories.filter((c: any) => c.type === 'expense'),
         [categories]);
 
     const filteredBudgets = useMemo(() => {
-        return budgets.filter(b => {
+        return budgets.filter((b: any) => {
             if (scopeFilter === 'all') return true;
             if (scopeFilter === 'personal') return b.user_id === userId;
             if (scopeFilter === 'family') return !b.user_id;
@@ -133,10 +133,10 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
     const budgetStats = useMemo(() => {
         const currentWeekNumber = getWeekNumber(new Date());
 
-        return filteredBudgets.map(budget => {
-            const category = categories.find(c => c.id === budget.category_id);
+        return filteredBudgets.map((budget: any) => {
+            const category = categories.find((c: any) => c.id === budget.category_id);
 
-            let relevantTxs = transactions.filter(t =>
+            let relevantTxs = transactions.filter((t: any) =>
                 t.type === 'expense' &&
                 t.category_id === budget.category_id
             );
@@ -144,7 +144,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
             // Strict Personal vs Family Filter
             if (budget.user_id) {
                 // Personal Budget: Only count my own transactions
-                relevantTxs = relevantTxs.filter(t => t.user_id === budget.user_id);
+                relevantTxs = relevantTxs.filter((t: any) => t.user_id === budget.user_id);
             } else {
                 // Family Budget: Count everyone's transactions (Global)
                 // (Already includes everyone because 'transactions' prop has family scope)
@@ -155,7 +155,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 const end = new Date(budget.end_date);
                 end.setHours(23, 59, 59, 999);
 
-                relevantTxs = relevantTxs.filter(t => {
+                relevantTxs = relevantTxs.filter((t: any) => {
                     const txDate = new Date(t.date);
                     return txDate >= start && txDate <= end;
                 });
@@ -165,19 +165,19 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 endOfWeek.setHours(23, 59, 59, 999);
 
-                relevantTxs = relevantTxs.filter(t => {
+                relevantTxs = relevantTxs.filter((t: any) => {
                     const txDate = new Date(t.date);
                     return txDate >= startOfWeek && txDate <= endOfWeek;
                 });
             } else {
-                relevantTxs = relevantTxs.filter(t => {
+                relevantTxs = relevantTxs.filter((t: any) => {
                     const txDate = new Date(t.date);
                     return txDate.getMonth() + 1 === budget.month &&
                         txDate.getFullYear() === budget.year;
                 });
             }
 
-            const spent = relevantTxs.reduce((acc, t) => acc + t.amount, 0);
+            const spent = relevantTxs.reduce((acc: number, t: any) => acc + t.amount, 0);
             const percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
 
             return {
@@ -190,9 +190,23 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
         });
     }, [filteredBudgets, categories, transactions]);
 
-    const handleCreateBudget = async (formData: FormData) => {
+    const handleCreateBudget = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+
+        const data = {
+            category_id: formData.get('category_id') as string,
+            amount: Number(formData.get('amount')),
+            period: formData.get('period') as any,
+            month: Number(formData.get('month')),
+            year: Number(formData.get('year')),
+            start_date: formData.get('start_date') as string,
+            end_date: formData.get('end_date') as string,
+            user_id: formData.get('user_id') === 'null' ? null : formData.get('user_id') as string,
+        };
+
         try {
-            await createBudget(formData);
+            await createBudgetMutation.mutateAsync(data);
             setIsCreating(false);
             setNewBudget({
                 category_id: '',
@@ -213,11 +227,19 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
     const handleDeleteBudget = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar este presupuesto?')) return;
         try {
-            await deleteBudget(id);
+            await deleteBudgetMutation.mutateAsync(id);
         } catch (error) {
             console.error('Error deleting budget:', error);
         }
     };
+
+    if (budgetsLoading || categoriesLoading || txLoading) {
+        return (
+            <div className="flex items-center justify-center py-24">
+                <Loader2 className="animate-spin text-blue-600" size={40} />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 pb-24 min-h-screen">
@@ -264,7 +286,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                         </div>
                         <Typography variant="h3">Definir Límite de Gasto</Typography>
                     </div>
-                    <form action={handleCreateBudget} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <form onSubmit={handleCreateBudget} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Hidden inputs for non-standard form fields */}
                         <input type="hidden" name="user_id" value={newBudget.scope === 'personal' ? userId : 'null'} />
                         <div className="md:col-span-2 flex justify-center pb-4">
@@ -294,7 +316,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             onChange={(e) => setNewBudget({ ...newBudget, category_id: e.target.value })}
                         >
                             <option value="">Selecciona una categoría</option>
-                            {expenseCategories.map(cat => (
+                            {expenseCategories.map((cat: any) => (
                                 <option key={cat.id} value={cat.id}>{cat.name}</option>
                             ))}
                         </InputField>
@@ -367,9 +389,10 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                             <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-foreground/40 hover:text-foreground">
                                 Cancelar
                             </Button>
-                            <SubmitButton icon={<Save size={18} />} className="shadow-lg shadow-blue-500/20 px-8">
+                            <Button type="submit" isLoading={createBudgetMutation.isPending} className="shadow-lg shadow-blue-500/20 px-8">
+                                <Save size={18} className="mr-2" />
                                 Crear Ahora
-                            </SubmitButton>
+                            </Button>
                         </div>
                     </form>
                 </Card>
@@ -391,7 +414,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                         </Button>
                     </Card>
                 ) : (
-                    budgetStats.map(budget => (
+                    budgetStats.map((budget: any) => (
                         <Card key={budget.id} variant="elevated" className="group hover:scale-[1.005] transition-all duration-300">
                             <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-4 mb-4 md:mb-8">
                                 <div className="flex flex-col space-y-2 order-2 md:order-1">
@@ -428,6 +451,7 @@ export default function BudgetClient({ initialBudgets, categories, transactions,
                                         variant="ghost"
                                         size="sm"
                                         className="text-foreground/20 opacity-100 md:opacity-0 group-hover:opacity-100 group-hover:text-rose-500 bg-foreground/[0.02] hover:bg-rose-500/10 transition-all rounded-2xl p-2 md:p-3"
+                                        isLoading={deleteBudgetMutation.isPending}
                                         onClick={() => handleDeleteBudget(budget.id)}
                                     >
                                         <Trash2 size={18} />

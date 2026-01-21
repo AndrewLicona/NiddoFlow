@@ -5,7 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, TrendingUp, PieChart, BarChart3, LineChart, AreaChart, Users } from 'lucide-react'
 import { Typography } from '@/components/ui/atoms/Typography'
 import { Card } from '@/components/ui/molecules/Card'
-import dynamic from 'next/dynamic'
+import { useTransactions } from '@/hooks/useTransactions';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useFamily } from '@/hooks/useFamily';
+import { useDashboard } from '@/hooks/useDashboard';
+import { Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
 const FinanceTrendChart = dynamic(() => import('../charts/FinanceTrendChart'), {
     ssr: false,
@@ -45,26 +50,25 @@ interface TrendPoint {
     expense: number;
 }
 
-interface Props {
-    transactions: Transaction[]
-    accounts: Account[]
-    profiles: Profile[]
-    trends?: TrendPoint[] // Support pre-aggregated trends
-}
+export default function ChartCarousel() {
+    const { transactions, isLoading: txLoading } = useTransactions();
+    const { accounts, isLoading: accountsLoading } = useAccounts();
+    const { members: profiles, isLoading: profilesLoading } = useFamily();
+    const { preparedData, isLoading: dashboardLoading } = useDashboard();
 
-export default function ChartCarousel({ transactions, accounts, profiles, trends }: Props) {
+    const trends = preparedData.trends;
     const [page, setPage] = useState(0)
 
     // Prepare distribution data for the specific component that needs it in a special format
     const expensesByCategory = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((acc: Record<string, number>, curr: Transaction) => {
-            const catName = curr.categories?.name || 'Otros'
+        .filter((t: any) => t.type === 'expense')
+        .reduce((acc: Record<string, number>, curr: any) => {
+            const catName = curr.category_name || curr.categories?.name || 'Otros'
             acc[catName] = (acc[catName] || 0) + Number(curr.amount)
             return acc
         }, {})
 
-    const distributionData = Object.entries(expensesByCategory).map(([name, value]) => ({
+    const distributionData = Object.entries(expensesByCategory).map(([name, value]: [string, any]) => ({
         name,
         value: Number(value),
         color: ''
@@ -114,6 +118,14 @@ export default function ChartCarousel({ transactions, accounts, profiles, trends
             component: <UserExpensesPieChart transactions={transactions} profiles={profiles} />
         }
     ]
+
+    if (txLoading || accountsLoading || profilesLoading || dashboardLoading) {
+        return (
+            <Card variant="elevated" className="flex items-center justify-center min-h-[450px]">
+                <Loader2 className="animate-spin text-indigo-600" size={40} />
+            </Card>
+        );
+    }
 
     const activeChart = charts[page]
 

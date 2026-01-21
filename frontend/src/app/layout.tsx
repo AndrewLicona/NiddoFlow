@@ -59,6 +59,7 @@ export const metadata: Metadata = {
 
 import { PWAProvider } from "@/components/providers/PWAProvider";
 import MainLayout from "@/components/providers/MainLayout";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 export default function RootLayout({
   children,
@@ -70,11 +71,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <PWAProvider>
-          <MainLayout>
-            {children}
-          </MainLayout>
-        </PWAProvider>
+        <QueryProvider>
+          <PWAProvider>
+            <MainLayout>
+              {children}
+            </MainLayout>
+          </PWAProvider>
+        </QueryProvider>
       </body>
     </html>
   );

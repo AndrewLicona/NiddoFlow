@@ -25,7 +25,10 @@ import {
     Image as ImageIcon,
     ExternalLink
 } from 'lucide-react';
-import { deleteTransaction, updateTransaction } from './actions';
+
+import { useTransactions } from '@/hooks/useTransactions';
+import { useCategories } from '@/hooks/useCategories';
+import { useAccounts } from '@/hooks/useAccounts';
 
 interface Transaction {
     id: string;
@@ -43,25 +46,11 @@ interface Transaction {
     target_account_name?: string;
 }
 
-interface Category {
-    id: string;
-    name: string;
-    type: 'income' | 'expense';
-}
+const TransactionList: React.FC = () => {
+    const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, isLoading: txLoading } = useTransactions();
+    const { categories, isLoading: catLoading } = useCategories();
+    const { accounts, isLoading: accLoading } = useAccounts();
 
-interface Account {
-    id: string;
-    name: string;
-    balance: number;
-}
-
-interface Props {
-    transactions: Transaction[];
-    categories: Category[];
-    accounts: Account[];
-}
-
-const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }) => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,7 +122,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
 
         setIsDeleting(id);
         try {
-            await deleteTransaction(id);
+            await deleteTxMutation.mutateAsync(id);
         } catch (error) {
             console.error(error);
             alert('Error al eliminar la transacción');
@@ -151,7 +140,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
             category_id: t.category_id,
             account_id: t.account_id,
             target_account_id: t.target_account_id,
-            date: t.date, // Keep full ISO string for datetime-local editing
+            date: t.date,
             receipt_url: t.receipt_url,
         });
     };
@@ -160,7 +149,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
         if (!editingId) return;
         setIsUpdating(true);
         try {
-            await updateTransaction(editingId, editData);
+            await updateTxMutation.mutateAsync({ id: editingId, data: editData });
             setEditingId(null);
             setExpandedId(null);
         } catch (error) {
@@ -248,6 +237,14 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
 
         return groups;
     }, [transactions, filter, debtSubFilter]);
+
+    if (txLoading || catLoading || accLoading) {
+        return (
+            <div className="flex items-center justify-center py-24">
+                <Loader2 className="animate-spin text-blue-600" size={40} />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 md:space-y-8">
@@ -424,10 +421,10 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                 >
                                                                     <option value="">Selecciona Categoría</option>
                                                                     <optgroup label="Gastos">
-                                                                        {categories.filter(c => c.type === 'expense').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                                        {categories.filter((c: any) => c.type === 'expense').map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                                     </optgroup>
                                                                     <optgroup label="Ingresos">
-                                                                        {categories.filter(c => c.type === 'income').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                                        {categories.filter((c: any) => c.type === 'income').map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                                     </optgroup>
                                                                 </InputField>
                                                                 <InputField
@@ -436,7 +433,7 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                     value={editData.account_id}
                                                                     onChange={e => setEditData({ ...editData, account_id: e.target.value })}
                                                                 >
-                                                                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                                                    {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                                                                 </InputField>
 
                                                                 {editData.type === 'transfer' && (
@@ -447,17 +444,15 @@ const TransactionList: React.FC<Props> = ({ transactions, categories, accounts }
                                                                         onChange={e => setEditData({ ...editData, target_account_id: e.target.value })}
                                                                     >
                                                                         <option value="">Selecciona cuenta</option>
-                                                                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                                                        {accounts.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                                                                     </InputField>
                                                                 )}
 
                                                                 <InputField
                                                                     label="Fecha y Hora"
                                                                     type="datetime-local"
-                                                                    // Format ISO string to YYYY-MM-DDTHH:mm for input
                                                                     value={editData.date ? new Date(editData.date).toLocaleTimeString('en-CA', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', 'T') : ''}
                                                                     onChange={e => {
-                                                                        // Convert back to ISO string on change
                                                                         const date = new Date(e.target.value);
                                                                         setEditData({ ...editData, date: date.toISOString() });
                                                                     }}

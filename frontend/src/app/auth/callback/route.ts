@@ -8,11 +8,10 @@ export async function GET(request: Request) {
     // if "next" is in param, use it as the redirect URL
     const next = searchParams.get('next') ?? '/'
 
-    // Use the origin from environment variable or headers to avoid internal Docker URL redirects
-    const origin = process.env.NEXT_PUBLIC_BASE_URL ||
-        (request.headers.get('x-forwarded-proto') && request.headers.get('x-forwarded-host')
-            ? `${request.headers.get('x-forwarded-proto')}://${request.headers.get('x-forwarded-host')}`
-            : url.origin)
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+    const isLocal = host?.includes('localhost') || host?.includes('127.0.0.1') || (host && /^(\d{1,3}\.){3}\d{1,3}/.test(host))
+    const proto = request.headers.get('x-forwarded-proto') || (isLocal ? 'http' : 'https')
+    const origin = (host ? `${proto}://${host}` : process.env.NEXT_PUBLIC_BASE_URL) || url.origin
 
     console.log('--- Auth Callback ---')
     console.log('Origin detected:', origin)

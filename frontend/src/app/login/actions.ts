@@ -59,14 +59,21 @@ export async function loginWithGoogle() {
     const supabase = await createClient()
     const headerList = await headers()
     const host = headerList.get('x-forwarded-host') || headerList.get('host')
-    const proto = headerList.get('x-forwarded-proto') || 'https'
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : headerList.get('origin') || 'http://localhost:3000')
+    // Dynamic protocol detection: use x-forwarded-proto if behind proxy, 
+    // otherwise fallback to http for local IPs/localhost, or https for production
+    const isLocal = host?.includes('localhost') || host?.includes('127.0.0.1') || (host && /^(\d{1,3}\.){3}\d{1,3}/.test(host))
+    const proto = headerList.get('x-forwarded-proto') || (isLocal ? 'http' : 'https')
+    const origin = (host ? `${proto}://${host}` : process.env.NEXT_PUBLIC_BASE_URL) || 'http://localhost:3000'
 
 
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
             redirectTo: `${origin}/auth/callback`,
+            queryParams: {
+                access_type: 'offline',
+                prompt: 'consent',
+            },
         },
     })
 
@@ -77,4 +84,41 @@ export async function loginWithGoogle() {
     if (data.url) {
         redirect(data.url)
     }
+}
+
+export async function resetPassword(formData: FormData) {
+    const supabase = await createClient()
+    const email = formData.get('email') as string
+
+    // Construct dynamic origin
+    const headerList = await headers()
+    const host = headerList.get('x-forwarded-host') || headerList.get('host')
+    const isLocal = host?.includes('localhost') || host?.includes('127.0.0.1') || (host && /^(\d{1,3}\.){3}\d{1,3}/.test(host))
+    const proto = headerList.get('x-forwarded-proto') || (isLocal ? 'http' : 'https')
+    const origin = (host ? `${proto}://${host}` : process.env.NEXT_PUBLIC_BASE_URL) || 'http://localhost:3000'
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    })
+
+    if (error) {
+        redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`)
+    }
+
+    redirect('/forgot-password?success=true')
+}
+
+export async function updatePassword(formData: FormData) {
+    const supabase = await createClient()
+    const password = formData.get('password') as string
+
+    const { error } = await supabase.auth.updateUser({
+        password: password
+    })
+
+    if (error) {
+        redirect(`/reset-password?error=${encodeURIComponent(error.message)}`)
+    }
+
+    redirect('/login?message=Contraseña actualizada correctamente')
 }

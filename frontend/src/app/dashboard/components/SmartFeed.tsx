@@ -7,15 +7,35 @@ import { useMemo } from 'react'
 import { generateInsights, Budget, Transaction } from '@/utils/analytics'
 import { motion } from 'framer-motion'
 
-interface Props {
-    budgetAlerts: Budget[]
-    debtToPay: number
-    debtToReceive: number
-    transactions: Transaction[]
-    budgets: Budget[]
-}
+import { useTransactions } from '@/hooks/useTransactions';
+import { useBudgets } from '@/hooks/useBudgets';
+import { useDebts } from '@/hooks/useDebts';
+import { Loader2 } from 'lucide-react';
 
-export default function SmartFeed({ budgetAlerts, debtToPay, transactions, budgets }: Props) {
+export default function SmartFeed() {
+    const { transactions, isLoading: txLoading } = useTransactions();
+    const { budgets, isLoading: budgetsLoading } = useBudgets();
+    const { debts, isLoading: debtsLoading } = useDebts();
+    const budgetStats = useMemo(() => {
+        return budgets.map((budget: any) => {
+            const spent = transactions
+                .filter((t: any) => t.type === 'expense' && t.category_id === budget.category_id)
+                .reduce((acc: number, t: any) => acc + t.amount, 0);
+            const percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+            return { ...budget, spent, percent };
+        });
+    }, [budgets, transactions]);
+
+    const budgetAlerts = useMemo(() =>
+        budgetStats.filter((b: any) => b.percent >= 80),
+        [budgetStats]);
+
+    const debtToPay = useMemo(() =>
+        debts
+            .filter((d: any) => d.type === 'to_pay' && d.status === 'active')
+            .reduce((acc: number, d: any) => acc + d.remaining_amount, 0),
+        [debts]);
+
     const insights = useMemo(() => generateInsights(transactions, budgets), [transactions, budgets])
 
     // Combine all "feed items" into a single list
@@ -32,18 +52,18 @@ export default function SmartFeed({ budgetAlerts, debtToPay, transactions, budge
         }] : []),
 
         // 2. Budget Alerts
-        ...budgetAlerts.map(b => ({
+        ...budgetAlerts.map((b: any) => ({
             id: `budget-${b.id}`,
             type: 'warning',
             icon: <AlertTriangle size={20} className="text-orange-500" />,
             title: 'Presupuesto',
-            message: `${b.categories?.name || 'Categoría'} al ${(b.percent).toFixed(0)}%`,
+            message: `${b.category_name || b.categories?.name || 'Categoría'} al ${(b.percent).toFixed(0)}%`,
             bgColor: 'bg-orange-50 dark:bg-orange-900/10',
             borderColor: 'border-orange-100 dark:border-orange-900/30'
         })),
 
         // 3. AI Insights
-        ...insights.map(i => ({
+        ...insights.map((i: any) => ({
             id: i.id,
             type: i.type,
             icon: getIcon(i.icon),
@@ -53,6 +73,14 @@ export default function SmartFeed({ budgetAlerts, debtToPay, transactions, budge
             borderColor: 'border-indigo-100 dark:border-indigo-900/30'
         }))
     ]
+
+    if (txLoading || budgetsLoading || debtsLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="animate-spin text-indigo-600" size={24} />
+            </div>
+        );
+    }
 
     if (feedItems.length === 0) {
         return (
