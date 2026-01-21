@@ -28,11 +28,16 @@ async function getData(token: string) {
 
 export default async function ReportsPage() {
     const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) redirect("/login");
+
     const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || '';
 
-    if (!session) redirect('/login');
-
-    const transactions = await getData(session.access_token);
+    const transactions = await getData(token);
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();

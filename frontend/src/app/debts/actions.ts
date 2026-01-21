@@ -17,6 +17,9 @@ export async function payDebt(formData: {
     const supabase = await createClient()
 
     // 1. Get Session and Family
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('No session')
+
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error('No session')
 

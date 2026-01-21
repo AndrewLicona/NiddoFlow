@@ -5,10 +5,10 @@ import AccountsClient from "./AccountsClient";
 export default async function AccountsPage() {
     const supabase = await createClient();
     const {
-        data: { session },
-    } = await supabase.auth.getSession();
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) redirect("/login");
+    if (!user) redirect("/login");
 
     return <AccountsClient />;
 }

@@ -34,9 +34,16 @@ async function getFamilyMembers(token: string) {
 
 export default async function SettingsPage() {
     const supabase = await createClient()
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) redirect("/login");
+
+    // We still need the session to get the access_token for API calls
     const { data: { session } } = await supabase.auth.getSession()
 
-    if (!session) redirect('/login')
+    if (!session) redirect('/login') // This check is redundant if user is already checked, but keeps the type guard for session.access_token
 
     const [family, members] = await Promise.all([
         getFamilyData(session.access_token),

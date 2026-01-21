@@ -8,6 +8,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
 
 async function getAuthHeader() {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
     return {

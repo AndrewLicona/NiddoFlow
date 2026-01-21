@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
+# Suppress noisy library logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 from app.routers import family as family_router
 from app.routers import account as account_router
