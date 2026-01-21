@@ -8,10 +8,10 @@ export const transactionsApi = {
         if (params.end_date) query.append("end_date", params.end_date);
         if (params.limit) query.append("limit", params.limit.toString());
 
-        return fetchWithAuth(`/transactions?${query.toString()}`);
+        return fetchWithAuth(`/transactions/?${query.toString()}`);
     },
     createTransaction: async (data: any) => {
-        return fetchWithAuth("/transactions", {
+        return fetchWithAuth("/transactions/", {
             method: "POST",
             body: JSON.stringify(data),
         });

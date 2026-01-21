@@ -36,11 +36,21 @@ export default async function DashboardPage(props: {
 
         // If no profile found or database error, send to onboarding
         if (profileError || !profile?.family_id) {
+            // We use a flag or throwing a specific error to handle redirect outside the try/catch if needed,
+            // or we just let it bubble if we import isRedirectError (not available in all Next.js versions easily).
+            // Safest pattern: use redirect() here and verify it bubbles.
+            // Next.js redirect() throws an error. If we catch it, we break it.
+            // We must rethrow if it is a redirect-like error (digest property usually).
             redirect("/onboarding");
         }
 
         return <DashboardClient user={user} profile={profile} />;
-    } catch (error) {
+    } catch (error: any) {
+        // NEXT_REDIRECT error handling
+        if (error.digest?.startsWith('NEXT_REDIRECT')) {
+            throw error;
+        }
+
         console.error("Dashboard Server Error:", error);
         // Fallback to LandingPage on any critical error to avoid "Application Error" white screen
         return <LandingPage />;
