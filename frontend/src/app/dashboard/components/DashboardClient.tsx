@@ -27,6 +27,7 @@ import ChartCarousel from "./ChartCarousel";
 import SmartFeed from "./SmartFeed";
 import OnboardingTour from "@/components/ui/organisms/OnboardingTour";
 import React, { useMemo } from "react";
+import { DashboardSkeleton } from "@/components/ui/molecules/SkeletonLoaders";
 
 interface DashboardClientProps {
     user: any;
@@ -78,11 +79,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email;
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     return (

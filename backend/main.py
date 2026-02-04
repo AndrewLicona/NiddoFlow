@@ -4,6 +4,7 @@ from pyinstrument import Profiler
 from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +58,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(family_router.router)
 app.include_router(account_router.router)

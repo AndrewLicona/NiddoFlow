@@ -2,6 +2,10 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import DashboardClient from "./dashboard/components/DashboardClient";
 import LandingPage from "./components/LandingPage";
+import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
+import { dashboardApi } from "@/lib/api/dashboard.api";
+import { accountsApi } from "@/lib/api/accounts.api";
+import { transactionsApi } from "@/lib/api/transactions.api";
 
 export default async function DashboardPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -20,13 +24,15 @@ export default async function DashboardPage(props: {
 
         // Use getUser() for server-side reliability
         const {
-            data: { user },
-            error: userError
-        } = await supabase.auth.getUser();
+            data: { session },
+            error: sessionError
+        } = await supabase.auth.getSession();
 
-        if (userError || !user) {
+        if (sessionError || !session?.user) {
             return <LandingPage />;
         }
+
+        const user = session.user;
 
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
@@ -36,15 +42,33 @@ export default async function DashboardPage(props: {
 
         // If no profile found or database error, send to onboarding
         if (profileError || !profile?.family_id) {
-            // We use a flag or throwing a specific error to handle redirect outside the try/catch if needed,
-            // or we just let it bubble if we import isRedirectError (not available in all Next.js versions easily).
-            // Safest pattern: use redirect() here and verify it bubbles.
-            // Next.js redirect() throws an error. If we catch it, we break it.
-            // We must rethrow if it is a redirect-like error (digest property usually).
             redirect("/onboarding");
         }
 
-        return <DashboardClient user={user} profile={profile} />;
+        // Prefetch data on the server
+        const queryClient = new QueryClient();
+        const authHeader = { Authorization: `Bearer ${session.access_token}` };
+
+        await Promise.all([
+            queryClient.prefetchQuery({
+                queryKey: ["dashboard"],
+                queryFn: () => dashboardApi.getStats(authHeader),
+            }),
+            queryClient.prefetchQuery({
+                queryKey: ["accounts", "family"],
+                queryFn: () => accountsApi.getAccounts("family", authHeader),
+            }),
+            queryClient.prefetchQuery({
+                queryKey: ["transactions", { limit: 5 }],
+                queryFn: () => transactionsApi.getTransactions({ limit: 5 }, authHeader),
+            })
+        ]);
+
+        return (
+            <HydrationBoundary state={dehydrate(queryClient)}>
+                <DashboardClient user={user} profile={profile} />
+            </HydrationBoundary>
+        );
     } catch (error: any) {
         // NEXT_REDIRECT error handling
         if (error.digest?.startsWith('NEXT_REDIRECT')) {

@@ -1,8 +1,8 @@
 import { fetchWithAuth } from "./client";
 
 export const accountsApi = {
-    getAccounts: async (scope: string = "family") => {
-        return fetchWithAuth(`/accounts?scope=${scope}`);
+    getAccounts: async (scope: string = "family", headers?: Record<string, string>) => {
+        return fetchWithAuth(`/accounts?scope=${scope}`, { headers });
     },
     createAccount: async (data: any) => {
         return fetchWithAuth("/accounts", {

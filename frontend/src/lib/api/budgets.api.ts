@@ -1,8 +1,8 @@
 import { fetchWithAuth } from "./client";
 
 export const budgetsApi = {
-    getBudgets: async (scope: string = "family") => {
-        return fetchWithAuth(`/budgets?scope=${scope}`);
+    getBudgets: async (scope: string = "family", headers?: Record<string, string>) => {
+        return fetchWithAuth(`/budgets?scope=${scope}`, { headers });
     },
     createBudget: async (data: any) => {
         return fetchWithAuth("/budgets", {
