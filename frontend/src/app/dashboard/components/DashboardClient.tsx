@@ -78,7 +78,11 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
 
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email;
 
-    if (isLoading) {
+    // Use a lighter condition for the main page skeleton
+    // If we have stats and accounts, we can show the main layout
+    const isMainDataLoading = statsLoading || accountsLoading;
+
+    if (isMainDataLoading) {
         return <DashboardSkeleton />;
     }
 

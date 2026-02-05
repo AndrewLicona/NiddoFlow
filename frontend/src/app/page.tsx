@@ -6,6 +6,10 @@ import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query
 import { dashboardApi } from "@/lib/api/dashboard.api";
 import { accountsApi } from "@/lib/api/accounts.api";
 import { transactionsApi } from "@/lib/api/transactions.api";
+import { budgetsApi } from "@/lib/api/budgets.api";
+import { debtsApi } from "@/lib/api/debts.api";
+import { Suspense } from "react";
+import { DashboardSkeleton } from "@/components/ui/molecules/SkeletonLoaders";
 
 export default async function DashboardPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -13,7 +17,6 @@ export default async function DashboardPage(props: {
     const searchParams = await props.searchParams;
     const code = searchParams.code as string;
 
-    // Emergency redirect if OAuth code lands on root instead of /auth/callback
     if (code) {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
         redirect(`${baseUrl}/auth/callback?code=${code}`);
@@ -22,7 +25,6 @@ export default async function DashboardPage(props: {
     try {
         const supabase = await createClient();
 
-        // Use getUser() for server-side reliability
         const {
             data: { session },
             error: sessionError
@@ -40,16 +42,24 @@ export default async function DashboardPage(props: {
             .eq("id", user.id)
             .single();
 
-        // If no profile found or database error, send to onboarding
         if (profileError || !profile?.family_id) {
             redirect("/onboarding");
         }
 
-        // Prefetch data on the server
+        // Prefetch data on the server WITHOUT blocking the render
+        // We initialize the QueryClient and don't await the prefetchPromise
+        // but we pass the hydrated state to the boundary.
         const queryClient = new QueryClient();
         const authHeader = { Authorization: `Bearer ${session.access_token}` };
 
-        await Promise.all([
+        // Start prefetching but DON'T await it yet if we want true streaming.
+        // Actually, for better perceived performance, we await them in a separate component
+        // or just let them happen in the background.
+
+        // For NiddoFlow, we'll prefetch and dehydrate, but wrap the CLIENT in Suspense
+        // so the browser gets the layout immediately.
+
+        const prefetchPromise = Promise.all([
             queryClient.prefetchQuery({
                 queryKey: ["dashboard"],
                 queryFn: () => dashboardApi.getStats(authHeader),
@@ -61,22 +71,44 @@ export default async function DashboardPage(props: {
             queryClient.prefetchQuery({
                 queryKey: ["transactions", { limit: 5 }],
                 queryFn: () => transactionsApi.getTransactions({ limit: 5 }, authHeader),
+            }),
+            queryClient.prefetchQuery({
+                queryKey: ["budgets", "family"],
+                queryFn: () => budgetsApi.getBudgets("family", authHeader),
+            }),
+            queryClient.prefetchQuery({
+                queryKey: ["debts"],
+                queryFn: () => debtsApi.getDebts(authHeader),
             })
         ]);
 
         return (
-            <HydrationBoundary state={dehydrate(queryClient)}>
-                <DashboardClient user={user} profile={profile} />
-            </HydrationBoundary>
+            <Suspense fallback={<DashboardSkeleton />}>
+                <SyncDashboardContent
+                    queryClient={queryClient}
+                    prefetchPromise={prefetchPromise}
+                    user={user}
+                    profile={profile}
+                />
+            </Suspense>
         );
     } catch (error: any) {
-        // NEXT_REDIRECT error handling
         if (error.digest?.startsWith('NEXT_REDIRECT')) {
             throw error;
         }
-
         console.error("Dashboard Server Error:", error);
-        // Fallback to LandingPage on any critical error to avoid "Application Error" white screen
         return <LandingPage />;
     }
+}
+
+// Helper component to handle the hydration and the prefetch promise
+async function SyncDashboardContent({ queryClient, prefetchPromise, user, profile }: any) {
+    // We await here, so Suspense triggers the fallback until this is done.
+    await prefetchPromise;
+
+    return (
+        <HydrationBoundary state={dehydrate(queryClient)}>
+            <DashboardClient user={user} profile={profile} />
+        </HydrationBoundary>
+    );
 }
