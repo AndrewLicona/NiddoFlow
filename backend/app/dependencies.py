@@ -5,9 +5,11 @@ from app.db.supabase import supabase
 
 security = HTTPBearer()
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
     Verifies the JWT token against Supabase and returns the user object.
+    Running this synchronously (def) allows FastAPI to use a thread pool, 
+    preventing the event loop from being blocked by network-bound calls to Supabase Auth.
     """
     token = credentials.credentials
     try:

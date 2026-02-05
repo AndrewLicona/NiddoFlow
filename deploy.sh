@@ -27,7 +27,7 @@ fi
 
 # 3. Detener contenedores actuales
 echo -e "${CYAN}🛑 Deteniendo servicios actuales...${NC}"
-docker compose down
+docker compose --env-file .env.production down
 
 # 4. Limpieza opcional (opción profunda)
 if [[ "$*" == *"--deep"* ]]; then

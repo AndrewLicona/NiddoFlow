@@ -17,13 +17,13 @@ export const transactionsApi = {
         });
     },
     updateTransaction: async (id: string, data: any) => {
-        return fetchWithAuth(`/transactions/${id}`, {
+        return fetchWithAuth(`/transactions/${id}/`, {
             method: "PATCH",
             body: JSON.stringify(data),
         });
     },
     deleteTransaction: async (id: string) => {
-        return fetchWithAuth(`/transactions/${id}`, {
+        return fetchWithAuth(`/transactions/${id}/`, {
             method: "DELETE",
         });
     },

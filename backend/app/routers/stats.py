@@ -24,7 +24,7 @@ def get_stats_service():
     repo = StatsRepository()
     return StatsService(repo)
 
-@router.get("/dashboard", response_model=DashboardStats)
+@router.get("/dashboard/", response_model=DashboardStats)
 async def get_dashboard_stats(
     user = Depends(get_current_user),
     service: StatsService = Depends(get_stats_service)
