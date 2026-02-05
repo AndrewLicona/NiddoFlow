@@ -2,10 +2,10 @@ import { fetchWithAuth } from "./client";
 
 export const debtsApi = {
     getDebts: async (headers?: Record<string, string>) => {
-        return fetchWithAuth("/debts", { headers });
+        return fetchWithAuth("/debts/", { headers });
     },
     createDebt: async (data: any) => {
-        return fetchWithAuth("/debts", {
+        return fetchWithAuth("/debts/", {
             method: "POST",
             body: JSON.stringify(data),
         });

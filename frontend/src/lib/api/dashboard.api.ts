@@ -14,6 +14,7 @@ export interface DashboardStats {
 }
 
 export const dashboardApi = {
-    getStats: (headers?: Record<string, string>): Promise<DashboardStats> =>
-        fetchWithAuth('/stats/dashboard', { headers }),
+    getStats: async (headers?: Record<string, string>): Promise<DashboardStats> => {
+        return fetchWithAuth("/stats/dashboard/", { headers });
+    },
 };

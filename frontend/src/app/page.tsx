@@ -34,7 +34,12 @@ export default async function DashboardPage(props: {
             return <LandingPage />;
         }
 
-        const user = session.user;
+        // Use getUser() for better security as per Supabase recommendations
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+            return <LandingPage />;
+        }
 
         const { data: profile, error: profileError } = await supabase
             .from("profiles")

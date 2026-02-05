@@ -2,10 +2,10 @@ import { fetchWithAuth } from "./client";
 
 export const budgetsApi = {
     getBudgets: async (scope: string = "family", headers?: Record<string, string>) => {
-        return fetchWithAuth(`/budgets?scope=${scope}`, { headers });
+        return fetchWithAuth(`/budgets/?scope=${scope}`, { headers });
     },
     createBudget: async (data: any) => {
-        return fetchWithAuth("/budgets", {
+        return fetchWithAuth("/budgets/", {
             method: "POST",
             body: JSON.stringify(data),
         });

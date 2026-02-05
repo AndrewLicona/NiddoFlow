@@ -150,14 +150,20 @@ class TransactionsService(BaseService):
     async def _enrich_transactions(self, family_id: str, transactions: List[Dict]):
         if not transactions: return []
         
+        # Parallel-like optimization: Fetch everything needed for enrichment in single calls
+        # instead of hitting the DB for each small piece or several times
+        
+        # Get category and account maps in bulk
         cat_res = self.repository.get_categories(family_id)
         acc_res = self.repository.get_accounts_by_family(family_id)
+        
+        # Only fetch profiles for the users present in the transaction list
         user_ids = list(set([str(t['user_id']) for t in transactions if t.get('user_id')]))
-        prof_res = self.repository.get_profiles_by_ids(user_ids)
+        prof_res = self.repository.get_profiles_by_ids(user_ids) if user_ids else None
 
         category_map = {str(c['id']): c['name'] for c in (cat_res.data or [])}
         account_map = {str(a['id']): a['name'] for a in (acc_res.data or [])}
-        profile_map = {str(p['id']): p['full_name'] for p in (prof_res.data or [])}
+        profile_map = {str(p['id']): p['full_name'] for p in (prof_res.data if prof_res else [])}
 
         for t in transactions:
             t['category_name'] = category_map.get(str(t.get('category_id')))
