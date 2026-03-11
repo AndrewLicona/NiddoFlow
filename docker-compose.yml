@@ -35,6 +35,7 @@ services:
       - CORS_ORIGINS=https://niddoflow.andrewlamaquina.my
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OCR_PROVIDER=gemini
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       - niddoflow-network
     healthcheck:
