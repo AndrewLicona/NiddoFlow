@@ -33,10 +33,12 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - CORS_ORIGINS=https://niddoflow.andrewlamaquina.my
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OCR_PROVIDER=gemini
     networks:
       - niddoflow-network
     healthcheck:
-      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
