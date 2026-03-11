@@ -21,12 +21,20 @@ export default async function TransactionsPage() {
                 description="Todas tus transacciones y movimientos."
                 backHref="/"
                 actions={
-                    <Link href="/transactions/new">
-                        <Button size="sm">
-                            <Plus size={16} className="mr-2" />
-                            Nueva Transacción
-                        </Button>
-                    </Link>
+                    <div className="flex gap-2">
+                        <Link href="/transactions/bulk">
+                            <Button size="sm" variant="outline" className="border-blue-500/20 text-blue-600 hover:bg-blue-600 hover:text-white">
+                                <Plus size={16} className="mr-2" />
+                                Carga Masiva
+                            </Button>
+                        </Link>
+                        <Link href="/transactions/new">
+                            <Button size="sm">
+                                <Plus size={16} className="mr-2" />
+                                Nueva Transacción
+                            </Button>
+                        </Link>
+                    </div>
                 }
             />
 

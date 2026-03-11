@@ -25,7 +25,7 @@ export async function createTransaction(formData: FormData) {
 
     const rawData = {
         description: formData.get('description'),
-        amount: Number(formData.get('amount')),
+        amount: Number(formData.get('amount')?.toString().replace(/\./g, '') || 0),
         type: formData.get('type'),
         category_id: formData.get('categoryId') || null,
         account_id: formData.get('accountId'),
@@ -110,4 +110,30 @@ export async function updateTransaction(transactionId: string, data: Transaction
 
     revalidatePath('/transactions')
     revalidatePath('/')
+}
+export async function createBulkTransactions(transactions: TransactionUpdate[]) {
+    const headers = await getAuthHeader()
+    if (!headers) redirect('/login')
+
+    // Process all transactions
+    const processed = transactions.map(t => ({
+        ...t,
+        amount: Number(t.amount || 0),
+        date: t.date ? new Date(t.date).toISOString() : new Date().toISOString()
+    }))
+
+    const res = await fetch(`${API_URL}/transactions/bulk`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(processed)
+    })
+
+    if (!res.ok) {
+        console.error('Failed to create bulk transactions', await res.text())
+        throw new Error('Failed to create bulk transactions')
+    }
+
+    revalidatePath('/', 'layout')
+    revalidatePath('/transactions')
+    return { success: true }
 }

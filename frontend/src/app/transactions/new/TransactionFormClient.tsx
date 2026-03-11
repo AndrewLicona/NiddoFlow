@@ -31,10 +31,28 @@ interface Props {
 
 export default function TransactionFormClient({ categories, accounts }: Props) {
     const [uploading, setUploading] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
     const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [receiptFile, setReceiptFile] = useState<File | null>(null);
     const [type, setType] = useState<string>('expense');
+
+    const [amount, setAmount] = useState('');
+    const [description, setDescription] = useState('');
+    const [categoryId, setCategoryId] = useState('');
+
+    // Helper to format number with dots (thousands separators)
+    const formatNumber = (value: string) => {
+        const rawValue = value.replace(/\D/g, '');
+        if (!rawValue) return '';
+        return new Intl.NumberFormat('es-CO').format(parseInt(rawValue));
+    };
+
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const formattedValue = formatNumber(value);
+        setAmount(formattedValue);
+    };
 
     const incomeCategories = categories.filter((c: Category) => c.type === 'income');
     const expenseCategories = categories.filter((c: Category) => c.type === 'expense');
@@ -58,7 +76,80 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
         setFilePreview(URL.createObjectURL(file));
 
         // Auto upload on select
-        await uploadReceipt(file);
+        uploadReceipt(file);
+        // Autocompleta los datos con OpenAI
+        scanReceipt(file);
+    };
+
+    const scanReceipt = async (file: File) => {
+        setIsScanning(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = {};
+            if (session) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            const response = await fetch(`${baseUrl}/api/ocr/extract`, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+
+            if (!response.ok) {
+                console.error("OCR failed");
+                return;
+            }
+
+            const data = await response.json();
+            
+            // Set Nature (Type)
+            if (data.nature) {
+                const natureMap: Record<string, string> = {
+                    'Ingreso': 'income',
+                    'Gasto': 'expense',
+                    'Transferencia': 'transfer'
+                };
+                const mappedType = natureMap[data.nature];
+                if (mappedType) setType(mappedType);
+            }
+
+            if (data.amount) {
+                const formatted = formatNumber(Math.floor(data.amount).toString());
+                setAmount(formatted);
+            }
+            if (data.description) setDescription(data.description);
+            if (data.date) setDate(data.date.slice(0, 16));
+            
+            if (data.category && categories.length > 0) {
+                const lowerCat = data.category.toLowerCase();
+                // Filter categories by the current (or new) type to avoid cross-type matching
+                const filteredCats = categories.filter(c => 
+                    (data.nature === 'Ingreso' && c.type === 'income') ||
+                    (data.nature === 'Gasto' && c.type === 'expense') ||
+                    (!data.nature) // fallback to all if nature is missing
+                );
+
+                const matchedCat = filteredCats.find(c => 
+                    c.name.toLowerCase().includes(lowerCat) || 
+                    lowerCat.includes(c.name.toLowerCase())
+                );
+                
+                if (matchedCat) {
+                    setCategoryId(matchedCat.id);
+                }
+            }
+        } catch (error) {
+            console.error('Error scanning receipt:', error);
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const uploadReceipt = async (file: File) => {
@@ -106,15 +197,84 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                 <input type="hidden" name="receipt_url" value={receiptUrl || ''} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                    {/* Receipt Upload (Moved to top) */}
+                    <div className="md:col-span-2 bg-blue-50/50 dark:bg-blue-900/10 p-6 rounded-3xl border border-blue-500/10">
+                        <label className="block text-sm font-bold text-foreground mb-4">
+                            Toma una Foto o Sube tu Recibo (Imagen/PDF)
+                        </label>
+
+                        {!filePreview ? (
+                            <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-foreground/10 border-dashed rounded-2xl hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group cursor-pointer relative bg-card">
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    onChange={handleFileChange}
+                                    disabled={uploading || isScanning}
+                                />
+                                <div className="space-y-2 text-center">
+                                    <div className="mx-auto h-12 w-12 text-foreground/20 group-hover:text-blue-500 transition-colors flex items-center justify-center rounded-full bg-foreground/5 group-hover:bg-blue-500/10">
+                                        {uploading || isScanning ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
+                                    </div>
+                                    <div className="flex text-sm text-foreground/60 justify-center flex-wrap gap-1">
+                                        <span className="relative cursor-pointer rounded-md font-bold text-blue-600 hover:text-blue-500">
+                                            {isScanning ? 'Escaneando con IA...' : (uploading ? 'Subiendo...' : 'Toma foto o elige archivo')}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-foreground/40 mt-1">
+                                        Fotos de tickets o facturas PDF hasta 5MB.<br/>¡La IA llenará todo por ti!
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="relative rounded-2xl border border-foreground/10 bg-card p-4 flex items-center justify-between shadow-sm">
+                                <div className="flex items-center space-x-4 w-full overflow-hidden">
+                                    <div className="h-16 w-16 flex-shrink-0 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center overflow-hidden border border-foreground/5">
+                                        {receiptFile?.type.startsWith('image/') ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
+                                        ) : (
+                                            <Paperclip className="text-blue-500" size={24} />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 pr-4">
+                                        <Typography variant="body" className="font-bold text-foreground text-sm truncate">
+                                            {receiptFile?.name}
+                                        </Typography>
+                                        <Typography variant="small" className="text-blue-600 font-bold text-[10px] uppercase flex items-center mt-1">
+                                            {isScanning ? (
+                                                <><Loader2 size={10} className="mr-1 animate-spin" /> Analizando recibo con IA...</>
+                                            ) : uploading ? (
+                                                <><Loader2 size={10} className="mr-1 animate-spin" /> Subiendo respaldo...</>
+                                            ) : (
+                                                <span className="text-green-600">Comprobante guardado</span>
+                                            )}
+                                        </Typography>
+                                    </div>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={clearReceipt}
+                                    className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 shrink-0"
+                                >
+                                    <Trash2 size={18} />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Amount */}
                     <div className="md:col-span-1">
                         <InputField
                             label="Monto total"
                             name="amount"
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
+                            type="text"
+                            placeholder="0"
                             required
+                            value={amount}
+                            onChange={handleAmountChange}
                             className="text-2xl font-black tracking-tighter"
                         />
                     </div>
@@ -141,6 +301,8 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             name="description"
                             placeholder="Ej: Compra semanal, Bono mensual..."
                             required
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
                         />
                     </div>
 
@@ -195,7 +357,10 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             label="Categoría"
                             name="categoryId"
                             as="select"
+                            value={categoryId}
+                            onChange={(e) => setCategoryId(e.target.value)}
                         >
+                            <option value="">Selecciona categoría</option>
                             <optgroup label="Gastos Comunes">
                                 {expenseCategories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </optgroup>
@@ -205,72 +370,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                         </InputField>
                     </div>
 
-                    {/* Receipt Upload */}
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-bold text-foreground mb-2">
-                            Comprobante / Recibo (Opcional)
-                        </label>
 
-                        {!filePreview ? (
-                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-foreground/10 border-dashed rounded-2xl hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group cursor-pointer relative">
-                                <input
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                    onChange={handleFileChange}
-                                    disabled={uploading}
-                                />
-                                <div className="space-y-2 text-center">
-                                    <div className="mx-auto h-12 w-12 text-foreground/20 group-hover:text-blue-500 transition-colors flex items-center justify-center rounded-full bg-foreground/5 group-hover:bg-blue-500/10">
-                                        {uploading ? <Loader2 className="animate-spin" size={24} /> : <Paperclip size={24} />}
-                                    </div>
-                                    <div className="flex text-sm text-foreground/60 justify-center">
-                                        <span className="relative cursor-pointer rounded-md font-bold text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                                            {uploading ? 'Subiendo...' : 'Sube un archivo'}
-                                        </span>
-                                        <p className="pl-1">o arrastra y suelta</p>
-                                    </div>
-                                    <p className="text-xs text-foreground/40">
-                                        PNG, JPG, PDF hasta 5MB
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="relative mt-2 rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-4 flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <div className="h-16 w-16 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center overflow-hidden border border-foreground/5">
-                                        {receiptFile?.type.startsWith('image/') ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={filePreview} alt="Preview" className="h-full w-full object-cover" />
-                                        ) : (
-                                            <Paperclip className="text-blue-500" size={24} />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <Typography variant="body" className="font-bold text-foreground text-sm truncate max-w-[200px]">
-                                            {receiptFile?.name}
-                                        </Typography>
-                                        <Typography variant="small" className="text-green-600 font-bold text-[10px] uppercase flex items-center mt-1">
-                                            {uploading ? (
-                                                <><Loader2 size={10} className="mr-1 animate-spin" /> Subiendo...</>
-                                            ) : (
-                                                <>Listo para guardar</>
-                                            )}
-                                        </Typography>
-                                    </div>
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={clearReceipt}
-                                    className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
-                                >
-                                    <Trash2 size={18} />
-                                </Button>
-                            </div>
-                        )}
-                    </div>
 
                     {/* Date with Time */}
                     <div className="md:col-span-2">

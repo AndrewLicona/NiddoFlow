@@ -8,7 +8,7 @@ class TransactionsService(BaseService):
         super().__init__(repository)
 
     async def create_transaction(self, user_id: str, tx_data: dict):
-        profile_res = self.repository.get_user_profile(user_id)
+        profile_res = await self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
              raise Exception("User does not belong to a family")
         
@@ -16,7 +16,13 @@ class TransactionsService(BaseService):
         
         data = {**tx_data}
         data['user_id'] = str(user_id)
-        data['family_id'] = family_id
+        data['family_id'] = str(family_id)
+        
+        # Convert all UUID fields to string for Supabase serialization
+        for key in ['account_id', 'category_id', 'target_account_id']:
+            if data.get(key):
+                data[key] = str(data[key])
+
         if isinstance(data.get('date'), datetime):
             data['date'] = data['date'].isoformat()
             
@@ -36,62 +42,69 @@ class TransactionsService(BaseService):
         return res.data[0]
 
     async def get_transactions(self, user_id: str, scope: str = "family", start_date: str = None, end_date: str = None, limit: int = None):
-        profile_res = self.repository.get_user_profile(user_id)
+        profile_res = await self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
              return []
         
         family_id = profile_res.data[0]['family_id']
         
-        transactions_data = []
         if scope == "personal":
-            acc_res = self.repository.db.table("accounts").select("id").eq("user_id", str(user_id)).execute()
-            personal_account_ids = [a['id'] for a in (acc_res.data or [])]
-            if not personal_account_ids:
-                return []
-            
-            res = self.repository.query_transactions({"account_id": personal_account_ids})
-            transactions_data = res.data or []
+            # Using Prisma for consistency and speed
+            accounts = await self.repository.prisma.account.find_many(where={"user_id": user_id})
+            valid_account_ids = [a.id for a in accounts]
         else:
-            # Family Scope
-            all_accounts_res = self.repository.get_accounts_by_family(family_id)
+            all_accounts_res = await self.repository.get_accounts_by_family(family_id)
             all_accounts = all_accounts_res.data or []
-            
             valid_account_ids = [acc['id'] for acc in all_accounts if not acc.get('user_id') or str(acc.get('user_id')) == str(user_id)]
 
-            # 1. Transactions from allowed accounts
-            tx_allowed = []
-            if valid_account_ids:
-                filters = {"account_id": valid_account_ids}
-                # Date filtering needs to be handled in query_transactions or similar
-                # For simplicity, I'll use the repository db directly for complex filters if needed
-                query = self.repository.db.table("transactions").select("*").in_("account_id", valid_account_ids)
-                if start_date: query = query.gte("date", start_date)
-                if end_date: query = query.lte("date", end_date)
-                tx_allowed = query.order("date", desc=True).execute().data or []
+        if not valid_account_ids:
+            return []
 
-            # 2. Transfers for family
-            query_transfers = self.repository.db.table("transactions").select("*").eq("family_id", family_id).eq("type", "transfer")
-            if start_date: query_transfers = query_transfers.gte("date", start_date)
-            if end_date: query_transfers = query_transfers.lte("date", end_date)
-            tx_transfers = query_transfers.order("date", desc=True).execute().data or []
-
-            # 3. Merge
-            combined = {t['id']: t for t in tx_allowed}
-            for t in tx_transfers:
-                combined[t['id']] = t
-                
+        # Fetch main transactions using Prisma for single-trip enrichment
+        tx_data = await self.repository.get_transactions_prisma(family_id, valid_account_ids, start_date, end_date, limit)
+        
+        # If family scope, also include transfers
+        if scope != "personal":
+            transfers = await self.repository.get_transfers_prisma(family_id, start_date, end_date)
+            # Merge and Sort
+            combined = {str(t.id): t for t in tx_data}
+            for t in transfers:
+                combined[str(t.id)] = t
+            
             transactions_data = list(combined.values())
-            transactions_data.sort(key=lambda x: x['date'], reverse=True)
+            transactions_data.sort(key=lambda x: x.date, reverse=True)
             if limit:
                 transactions_data = transactions_data[:limit]
+        else:
+            transactions_data = tx_data
 
-        return await self._enrich_transactions(family_id, transactions_data)
+        # Transform Prisma models to Dict for the existing frontend contract
+        # Prisma include already gave us 'category' and 'account'
+        enriched = []
+        
+        # We still need user profiles if we want names, currently profiles not in Prisma schema relations
+        # Let's do bulk profile fetch as before
+        user_ids = list(set([str(t.user_id) for t in transactions_data if t.user_id]))
+        prof_res = await self.repository.get_profiles_by_ids(user_ids) if user_ids else None
+        profile_map = {str(p['id']): p['full_name'] for p in (prof_res.data if prof_res else [])}
+
+        for t in transactions_data:
+            tx_dict = t.model_dump()
+            tx_dict['category_name'] = t.category.name if t.category else None
+            tx_dict['account_name'] = t.account.name if t.account else None
+            tx_dict['user_name'] = profile_map.get(str(t.user_id))
+            # Convert date to isoformat string for matching TransactionResponse model
+            if isinstance(tx_dict['date'], datetime):
+                tx_dict['date'] = tx_dict['date'].isoformat()
+            enriched.append(tx_dict)
+
+        return enriched
 
     async def update_transaction(self, user_id: str, transaction_id: str, updates: dict):
-        profile_res = self.repository.get_user_profile(user_id)
+        profile_res = await self.repository.get_user_profile(user_id)
         family_id = profile_res.data[0]['family_id']
 
-        old_tx_res = self.repository.get_transaction_by_id(transaction_id)
+        old_tx_res = await self.repository.get_transaction_by_id(transaction_id)
         if not old_tx_res.data:
             raise Exception("Transaction not found")
         
@@ -107,6 +120,12 @@ class TransactionsService(BaseService):
 
         # Prepare Updates
         data = {**updates}
+        
+        # Convert all UUID fields to string for Supabase serialization
+        for key in ['account_id', 'category_id', 'target_account_id']:
+            if data.get(key):
+                data[key] = str(data[key])
+
         if 'date' in data and isinstance(data['date'], datetime):
             data['date'] = data['date'].isoformat()
         
@@ -122,10 +141,10 @@ class TransactionsService(BaseService):
         return res.data[0]
 
     async def delete_transaction(self, user_id: str, transaction_id: str):
-        profile_res = self.repository.get_user_profile(user_id)
+        profile_res = await self.repository.get_user_profile(user_id)
         family_id = profile_res.data[0]['family_id']
 
-        tx_res = self.repository.get_transaction_by_id(transaction_id)
+        tx_res = await self.repository.get_transaction_by_id(transaction_id)
         if not tx_res.data:
             raise Exception("Transaction not found")
         
@@ -142,27 +161,30 @@ class TransactionsService(BaseService):
         return True
 
     async def _update_account_balance(self, account_id: str, delta: float):
-        acc_res = self.repository.get_account_by_id(account_id)
+        acc_res = await self.repository.get_account_by_id(account_id)
         if acc_res.data:
             new_balance = acc_res.data[0]['balance'] + delta
-            self.repository.update_account_balance(account_id, new_balance)
+            await self.repository.update_account_balance(account_id, new_balance)
 
-    async def _enrich_transactions(self, family_id: str, transactions: List[Dict]):
+    async def _enrich_transactions(self, family_id: str, transactions: List[Dict], pre_fetched_accounts: Optional[List[Dict]] = None):
         if not transactions: return []
         
-        # Parallel-like optimization: Fetch everything needed for enrichment in single calls
-        # instead of hitting the DB for each small piece or several times
+        # bulk fetching
+        cat_res = await self.repository.get_categories(family_id)
         
-        # Get category and account maps in bulk
-        cat_res = self.repository.get_categories(family_id)
-        acc_res = self.repository.get_accounts_by_family(family_id)
+        # Use pre-fetched accounts if available, otherwise fetch
+        if pre_fetched_accounts is not None:
+            accounts = pre_fetched_accounts
+        else:
+            acc_res = await self.repository.get_accounts_by_family(family_id)
+            accounts = acc_res.data or []
         
         # Only fetch profiles for the users present in the transaction list
         user_ids = list(set([str(t['user_id']) for t in transactions if t.get('user_id')]))
-        prof_res = self.repository.get_profiles_by_ids(user_ids) if user_ids else None
+        prof_res = await self.repository.get_profiles_by_ids(user_ids) if user_ids else None
 
         category_map = {str(c['id']): c['name'] for c in (cat_res.data or [])}
-        account_map = {str(a['id']): a['name'] for a in (acc_res.data or [])}
+        account_map = {str(a['id']): a['name'] for a in accounts}
         profile_map = {str(p['id']): p['full_name'] for p in (prof_res.data if prof_res else [])}
 
         for t in transactions:

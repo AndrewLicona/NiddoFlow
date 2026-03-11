@@ -19,8 +19,18 @@ from app.routers import category as category_router
 from app.routers import budget as budget_router
 from app.routers import debt as debt_router
 from app.routers import stats as stats_router
+from app.routers import ocr as ocr_router
 
-app = FastAPI(title="NiddoFlow API")
+from contextlib import asynccontextmanager
+from app.db.prisma_db import connect_prisma, disconnect_prisma
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_prisma()
+    yield
+    await disconnect_prisma()
+
+app = FastAPI(title="NiddoFlow API", lifespan=lifespan)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
@@ -47,13 +57,15 @@ async def add_process_time_header(request: Request, call_next):
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.100.10:3000",
+    "http://192.168.100.4:3000",
+    "http://192.168.100.5:3000",
     "https://niddoflow.andrewlamaquina.my"
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"http://192\.168\.100\.\d{1,3}:3000",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,7 +80,7 @@ app.include_router(category_router.router)
 app.include_router(budget_router.router)
 app.include_router(debt_router.router)
 app.include_router(stats_router.router)
-
+app.include_router(ocr_router.router)
 
 @app.get("/")
 def read_root():

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, TrendingUp, PieChart, BarChart3, LineChart, AreaChart, Users } from 'lucide-react'
 import { Typography } from '@/components/ui/atoms/Typography'
@@ -54,19 +54,21 @@ export default function ChartCarousel() {
     }
 
     // Prepare distribution data for the specific component that needs it in a special format
-    const expensesByCategory = transactions
-        .filter((t: any) => t.type === 'expense')
-        .reduce((acc: Record<string, number>, curr: any) => {
-            const catName = curr.category_name || curr.categories?.name || 'Otros'
-            acc[catName] = (acc[catName] || 0) + Number(curr.amount)
-            return acc
-        }, {})
+    const distributionData = useMemo(() => {
+        const expensesByCategory = transactions
+            .filter((t: any) => t.type === 'expense')
+            .reduce((acc: Record<string, number>, curr: any) => {
+                const catName = curr.category_name || curr.categories?.name || 'Otros'
+                acc[catName] = (acc[catName] || 0) + Number(curr.amount)
+                return acc
+            }, {})
 
-    const distributionData = Object.entries(expensesByCategory).map(([name, value]: [string, any]) => ({
-        name,
-        value: Number(value),
-        color: ''
-    }))
+        return Object.entries(expensesByCategory).map(([name, value]: [string, any]) => ({
+            name,
+            value: Number(value),
+            color: ''
+        }))
+    }, [transactions]);
 
     const charts = [
         {

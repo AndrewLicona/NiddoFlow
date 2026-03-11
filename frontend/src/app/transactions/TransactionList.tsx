@@ -55,6 +55,7 @@ const TransactionList: React.FC = () => {
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editData, setEditData] = useState<Partial<Transaction>>({});
+    const [displayAmount, setDisplayAmount] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
     const [filter, setFilter] = useState<'all' | 'income' | 'expense' | 'debts'>('all');
     const [debtSubFilter, setDebtSubFilter] = useState<'all' | 'income' | 'expense'>('all');
@@ -131,8 +132,15 @@ const TransactionList: React.FC = () => {
         }
     };
 
+    const formatNumber = (value: string) => {
+        const rawValue = value.replace(/\D/g, '');
+        if (!rawValue) return '';
+        return new Intl.NumberFormat('es-CO').format(parseInt(rawValue));
+    };
+
     const startEditing = (t: Transaction) => {
         setEditingId(t.id);
+        setDisplayAmount(formatNumber(t.amount.toString()));
         setEditData({
             description: t.description,
             amount: t.amount,
@@ -399,9 +407,14 @@ const TransactionList: React.FC = () => {
                                                                 </div>
                                                                 <InputField
                                                                     label="Monto"
-                                                                    type="number"
-                                                                    value={editData.amount}
-                                                                    onChange={e => setEditData({ ...editData, amount: parseFloat(e.target.value) })}
+                                                                    type="text"
+                                                                    value={displayAmount}
+                                                                    onChange={e => {
+                                                                        const formatted = formatNumber(e.target.value);
+                                                                        setDisplayAmount(formatted);
+                                                                        const numeric = parseInt(formatted.replace(/\./g, '')) || 0;
+                                                                        setEditData({ ...editData, amount: numeric });
+                                                                    }}
                                                                 />
                                                                 <InputField
                                                                     label="Tipo"

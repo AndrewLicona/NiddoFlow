@@ -32,6 +32,21 @@ async def create_transaction(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/bulk", response_model=List[TransactionResponse])
+async def create_bulk_transactions(
+    transactions: List[TransactionCreate],
+    user = Depends(get_current_user),
+    service: TransactionsService = Depends(get_transactions_service)
+):
+    try:
+        results = []
+        for tx in transactions:
+            res = await service.create_transaction(user.id, tx.model_dump())
+            results.append(res)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/", response_model=List[TransactionResponse])
 async def get_transactions(
     scope: str = "family", 

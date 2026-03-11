@@ -21,10 +21,16 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
     const { budgets, isLoading: budgetsLoading } = useBudgets();
     const { debts, isLoading: debtsLoading } = useDebts();
     const budgetStats = useMemo(() => {
+        // Group expenses by category once for O(N + M) efficiency
+        const expensesByCategory = transactions
+            .filter((t: any) => t.type === 'expense')
+            .reduce((acc: Record<string, number>, t: any) => {
+                acc[t.category_id] = (acc[t.category_id] || 0) + Number(t.amount);
+                return acc;
+            }, {});
+
         return budgets.map((budget: any) => {
-            const spent = transactions
-                .filter((t: any) => t.type === 'expense' && t.category_id === budget.category_id)
-                .reduce((acc: number, t: any) => acc + t.amount, 0);
+            const spent = expensesByCategory[budget.category_id] || 0;
             const percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
             return { ...budget, spent, percent };
         });

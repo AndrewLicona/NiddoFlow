@@ -1,0 +1,119 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-py"
+}
+
+model Family {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String
+  invite_code  String?       @unique
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  accounts     Account[]
+  profiles     Profile[]
+  categories   Category[]
+  transactions Transaction[]
+  budgets      Budget[]
+  debts        Debt[]
+
+  @@map("families")
+}
+
+model Account {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String
+  type         String
+  family_id    String        @db.Uuid
+  user_id      String?       @db.Uuid
+  balance      Float?        @default(0)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  family       Family        @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+model Profile {
+  id         String   @id @db.Uuid
+  email      String?
+  full_name  String?
+  family_id  String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  family     Family?  @relation(fields: [family_id], references: [id], onDelete: SetNull)
+
+  @@map("profiles")
+}
+
+model Category {
+  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String
+  type         String
+  icon         String?
+  is_default   Boolean?      @default(false)
+  family_id    String?       @db.Uuid
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  family       Family?       @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+
+  @@map("categories")
+}
+
+model Transaction {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  description String
+  amount      Float
+  type        String
+  date        DateTime @default(now()) @db.Timestamptz(6)
+  category_id String?  @db.Uuid
+  account_id  String   @db.Uuid
+  user_id     String?  @db.Uuid
+  family_id   String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  category Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  account  Account   @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  family   Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Budget {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  category_id String    @db.Uuid
+  family_id   String    @db.Uuid
+  amount      Float
+  period      String    @default("monthly")
+  month       Int?
+  week_number Int?
+  year        Int
+  start_date  DateTime? @db.Date
+  end_date    DateTime? @db.Date
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  family   Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@unique([family_id, category_id, period, month, week_number, year])
+  @@map("budgets")
+}
+
+model Debt {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  family_id        String    @db.Uuid
+  description      String
+  total_amount     Float
+  remaining_amount Float
+  type             String
+  status           String
+  category_id      String?   @db.Uuid
+  due_date         DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+
+  @@map("debts")
+}
