@@ -17,7 +17,7 @@ import logging
 EASYOCR_AVAILABLE = False
 
 try:
-    import google.generativeai as genai
+    from google import genai as genai_sdk
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -30,8 +30,9 @@ if GEMINI_AVAILABLE:
 else:
     logger.warning("Gemini AI library NOT found. Fallback will be disabled.")
 
-# Configuración del cliente OpenAI
-client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# OpenAI client is created lazily inside _extract_openai to avoid
+# crashing on startup when OPENAI_API_KEY is not configured.
+_openai_client = None
 
 # Configuración Tesseract
 tesseract_cmd = os.getenv("TESSERACT_CMD")
@@ -40,16 +41,27 @@ if tesseract_cmd:
 
 # Cache EasyOCR Reader instance
 _easyocr_reader = None
+_gemini_client = None
 _gemini_client_initialized = False
+
+def get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set.")
+        _openai_client = openai.AsyncOpenAI(api_key=api_key)
+    return _openai_client
+
 
 def get_easyocr_reader():
     return None
 
 def init_gemini():
-    global _gemini_client_initialized
+    global _gemini_client, _gemini_client_initialized
     api_key = os.getenv("GEMINI_API_KEY")
     if api_key and GEMINI_AVAILABLE and not _gemini_client_initialized:
-        genai.configure(api_key=api_key)
+        _gemini_client = genai_sdk.Client(api_key=api_key)
         _gemini_client_initialized = True
     return _gemini_client_initialized
 
@@ -114,7 +126,8 @@ async def _extract_openai(file_bytes: bytes, mime_type: str) -> OCRExtractionRes
     """
 
     try:
-        response = await client.chat.completions.create(
+        c = get_openai_client()
+        response = await c.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": data_uri}}]}],
             response_format={ "type": "json_object" },
@@ -136,14 +149,11 @@ async def _extract_tesseract(file_bytes: bytes, mime_type: str, categories: Opti
         raise ValueError(f"Error Tesseract: {str(e)}")
 
 async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
-    """Implementation using Google Gemini 2.0 Flash (Fast & Free Tier)"""
+    """Implementation using Google Gemini 2.0 Flash via the new google.genai SDK."""
     if not init_gemini():
         raise ValueError("Gemini API Key not set or library not found.")
 
-    image_bytes, current_mime = _prepare_image(file_bytes, mime_type)
-    
-    # Using gemini-flash-latest (sometimes more stable quota-wise than 2.0-flash)
-    model = genai.GenerativeModel('gemini-flash-latest')
+    image_bytes, _ = _prepare_image(file_bytes, mime_type)
     
     prompt = f"""
     Eres un experto en contabilidad. Analiza esta factura/recibo y extrae CRIMINALMENTE EXACTO:
@@ -163,16 +173,18 @@ async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optiona
     """
 
     try:
-        # Gemini handles binary data directly
-        response = await model.generate_content_async([
-            prompt,
-            {'mime_type': 'image/jpeg', 'data': image_bytes}
-        ])
+        import base64 as b64
+        image_b64 = b64.b64encode(image_bytes).decode('utf-8')
         
-        # Parse JSON from response
+        response = await _gemini_client.aio.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=[
+                genai_sdk.types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg'),
+                prompt
+            ]
+        )
+        
         text_resp = response.text.strip()
-        
-        # Clean potential markdown backticks
         if "```json" in text_resp:
             text_resp = text_resp.split("```json")[1].split("```")[0].strip()
         elif "```" in text_resp:

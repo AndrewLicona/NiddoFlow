@@ -14,4 +14,4 @@ prisma
 pytesseract
 Pillow
 requests
-google-generativeai
+google-genai
