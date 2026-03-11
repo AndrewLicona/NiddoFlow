@@ -13,5 +13,5 @@ PyMuPDF
 prisma
 pytesseract
 Pillow
-easyocr
+requests
 google-generativeai

@@ -13,12 +13,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import logging
 
-# Optional import for EasyOCR
-try:
-    import easyocr
-    EASYOCR_AVAILABLE = True
-except ImportError:
-    EASYOCR_AVAILABLE = False
+# EasyOCR has been removed to reduce deployment time and image size.
+EASYOCR_AVAILABLE = False
 
 try:
     import google.generativeai as genai
@@ -47,11 +43,7 @@ _easyocr_reader = None
 _gemini_client_initialized = False
 
 def get_easyocr_reader():
-    global _easyocr_reader
-    if _easyocr_reader is None and EASYOCR_AVAILABLE:
-        logger.info("Initializing EasyOCR Reader (GPU if available, else CPU)...")
-        _easyocr_reader = easyocr.Reader(['es', 'en']) 
-    return _easyocr_reader
+    return None
 
 def init_gemini():
     global _gemini_client_initialized
@@ -81,8 +73,8 @@ async def extract_receipt_data(file_bytes: bytes, mime_type: str, categories: Op
     elif provider == "gemini":
         return await _extract_gemini(file_bytes, mime_type, categories)
     else:
-        # NEW STRATEGY: Gemini-First for speed ("Immediate") and intelligence.
-        # EasyOCR is only used if Gemini fails or quota is exceeded.
+        # STRATEGY: Gemini-First for speed/intelligence.
+        # Tesseract is the local fallback.
         
         if os.getenv("GEMINI_API_KEY"):
             logger.info("Using Gemini AI as primary provider for maximum speed and accuracy...")
@@ -93,9 +85,8 @@ async def extract_receipt_data(file_bytes: bytes, mime_type: str, categories: Op
             except Exception as e:
                 logger.warning(f"Gemini primary failed (likely quota): {e}. Falling back to local OCR...")
 
-        # Fallback to Local OCR (EasyOCR)
-        result = await _extract_easyocr(file_bytes, mime_type, categories)
-        return result
+        # Fallback to Local OCR (Tesseract)
+        return await _extract_tesseract(file_bytes, mime_type, categories)
 
 async def _extract_openai(file_bytes: bytes, mime_type: str) -> OCRExtractionResult:
     """Original implementation using GPT-4o-mini"""
@@ -142,7 +133,6 @@ async def _extract_tesseract(file_bytes: bytes, mime_type: str, categories: Opti
         text = pytesseract.image_to_string(image, lang='spa+eng')
         return _process_raw_text(text, categories)
     except Exception as e:
-        if EASYOCR_AVAILABLE: return await _extract_easyocr(file_bytes, mime_type, categories)
         raise ValueError(f"Error Tesseract: {str(e)}")
 
 async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
