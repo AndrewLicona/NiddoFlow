@@ -5,13 +5,10 @@ python-dotenv
 pydantic
 pydantic-settings
 email-validator
-reportlab
-pyinstrument
-openai
 python-multipart
 PyMuPDF
 prisma
 pytesseract
 Pillow
-requests
 google-genai
+openai
