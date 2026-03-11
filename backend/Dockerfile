@@ -13,10 +13,12 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN prisma generate
 
 # Copy application code
 COPY . .
+
+# Generate Prisma client (needs schema.prisma)
+RUN prisma generate
 
 # Create non-root user
 RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
