@@ -1,6 +1,5 @@
 import time
 import logging
-from pyinstrument import Profiler
 from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,20 +33,10 @@ app = FastAPI(title="NiddoFlow API", lifespan=lifespan)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
-    should_profile = request.query_params.get("profile", "false").lower() == "true"
-    
-    if should_profile:
-        profiler = Profiler(interval=0.001)
-        profiler.start()
-        
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
     
-    if should_profile:
-        profiler.stop()
-        return HTMLResponse(content=profiler.output_html())
-        
     # Log the time taken for each request
     logger.info(f"Path: {request.url.path} | Time: {process_time:.4f}s")
     response.headers["X-Process-Time"] = str(process_time)
