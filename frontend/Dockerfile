@@ -3,8 +3,11 @@
 # Stage 1: Install ALL dependencies (including devDependencies needed for build)
 FROM node:20-alpine AS builder
 WORKDIR /app
+# Force fresh npm install (bust cache with build arg)
+ARG CACHEBUST=1
 COPY package*.json ./
-RUN npm ci
+RUN echo "=== Cache bust: $CACHEBUST ===" && npm ci
+
 COPY . .
 
 # Add build-time arguments for Next.js environment variables
@@ -19,8 +22,8 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 
-# Call node directly to bypass Alpine sh shebang resolution issues
-RUN node ./node_modules/next/dist/bin/next build
+# Debug: show where next binary is declared, then build
+RUN node -e "try{const p=require('./node_modules/next/package.json');console.log('[DEBUG] next version:',p.version);console.log('[DEBUG] next bin:',JSON.stringify(p.bin));}catch(e){console.log('[DEBUG] ERROR:',e.message);}" && npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
