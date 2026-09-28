@@ -1,9 +1,6 @@
 # Multi-stage build for Next.js production
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
 
+# Stage 1: Install ALL dependencies (including devDependencies needed for build)
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
@@ -22,7 +19,8 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 
-RUN npm run build
+# Use explicit path to avoid PATH resolution issues in Alpine
+RUN ./node_modules/.bin/next build
 
 FROM node:20-alpine AS runner
 WORKDIR /app

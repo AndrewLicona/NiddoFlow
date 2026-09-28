@@ -38,6 +38,13 @@ fi
 # 5. Construir e iniciar
 echo -e "${CYAN}🏗️ Construyendo y levantando servicios...${NC}"
 docker compose --env-file .env.production up -d --build
+BUILD_EXIT=$?
+
+if [ $BUILD_EXIT -ne 0 ]; then
+    echo -e "${RED}❌ El build o despliegue falló con código de salida $BUILD_EXIT${NC}"
+    echo -e "${YELLOW}Revisa los logs con: docker compose logs --tail=50${NC}"
+    exit $BUILD_EXIT
+fi
 
 # 6. Verificación de salud
 echo -e "${CYAN}🔍 Verificando estado de los servicios...${NC}"
@@ -45,4 +52,4 @@ sleep 5
 docker ps | grep niddoflow
 
 echo -e "${GREEN}✅ ¡Despliegue completado satisfactoriamente!${NC}"
-echo -e "${GREEN}Accede a: https://niddoflow.andrewlamaquina.my${NC}"
+echo -e "${GREEN}Accede a: https://niddoflow.miserverlab.xyz${NC}"

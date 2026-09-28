@@ -8,15 +8,15 @@ services:
       args:
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_API_URL=https://niddoflow.andrewlamaquina.my/api
-        - NEXT_PUBLIC_BASE_URL=https://niddoflow.andrewlamaquina.my
+        - NEXT_PUBLIC_API_URL=https://niddoflow.miserverlab.xyz/api
+        - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
     container_name: niddoflow-frontend
     restart: unless-stopped
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - NEXT_PUBLIC_API_URL=https://niddoflow.andrewlamaquina.my/api
-      - NEXT_PUBLIC_BASE_URL=https://niddoflow.andrewlamaquina.my
+      - NEXT_PUBLIC_API_URL=https://niddoflow.miserverlab.xyz/api
+      - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
 
     networks:
       - niddoflow-network
@@ -32,7 +32,7 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - CORS_ORIGINS=https://niddoflow.andrewlamaquina.my
+      - CORS_ORIGINS=https://niddoflow.miserverlab.xyz
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OCR_PROVIDER=gemini
       - DATABASE_URL=${DATABASE_URL}
