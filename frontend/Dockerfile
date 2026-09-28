@@ -19,8 +19,8 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 
-# Use explicit path to avoid PATH resolution issues in Alpine
-RUN ./node_modules/.bin/next build
+# Call node directly to bypass Alpine sh shebang resolution issues
+RUN node ./node_modules/next/dist/bin/next build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
