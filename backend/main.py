@@ -43,12 +43,16 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 # Configure CORS
+import os
+cors_env = os.getenv("CORS_ORIGINS", "")
+env_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://192.168.100.4:3000",
-    "http://192.168.100.5:3000",
-    "https://niddoflow.andrewlamaquina.my"
+    "https://niddoflow.miserverlab.xyz",
+    "https://niddoflow.andrewlamaquina.my",
+    *env_origins
 ]
 
 app.add_middleware(
