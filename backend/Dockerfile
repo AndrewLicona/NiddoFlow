@@ -1,9 +1,10 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Install system dependencies (openssl and ca-certificates are required by Prisma query engine)
-RUN apt-get update && apt-get install -y \
+# Configure APT retries and install system dependencies (openssl and ca-certificates are required by Prisma query engine)
+RUN echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries \
+  && apt-get update && apt-get install -y --no-install-recommends \
   gcc \
   tesseract-ocr \
   tesseract-ocr-spa \
