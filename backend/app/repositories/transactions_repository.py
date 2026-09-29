@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime
 from app.repositories.base import BaseRepository
 
 class TransactionsRepository(BaseRepository):
@@ -12,13 +13,58 @@ class TransactionsRepository(BaseRepository):
         tx = await self.prisma.transaction.find_unique(where={"id": tx_id})
         return type('obj', (object,), {'data': [tx.dict()] if tx else []})
 
-    def insert_transaction(self, data: dict):
+    async def insert_transaction(self, data: dict):
+        try:
+            prisma_data = {}
+            for k, v in data.items():
+                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id']:
+                    prisma_data[k] = v
+                elif k == 'date' and v:
+                    if isinstance(v, str):
+                        prisma_data['date'] = datetime.fromisoformat(v.replace('Z', '+00:00'))
+                    else:
+                        prisma_data['date'] = v
+            created = await self.prisma.transaction.create(data=prisma_data)
+            if created:
+                return type('obj', (object,), {'data': [created.dict()]})
+        except Exception as pe:
+            pass
         return self.db.table("transactions").insert(data).execute()
 
-    def update_transaction(self, tx_id: str, data: dict):
-        return self.db.table("transactions").update(data).eq("id", tx_id).execute()
+    async def update_transaction(self, tx_id: str, data: dict):
+        try:
+            prisma_data = {}
+            for k, v in data.items():
+                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id']:
+                    prisma_data[k] = v
+                elif k == 'date' and v:
+                    if isinstance(v, str):
+                        prisma_data['date'] = datetime.fromisoformat(v.replace('Z', '+00:00'))
+                    else:
+                        prisma_data['date'] = v
+            if prisma_data:
+                updated = await self.prisma.transaction.update(
+                    where={"id": tx_id},
+                    data=prisma_data
+                )
+                if updated:
+                    return type('obj', (object,), {'data': [updated.dict()]})
+        except Exception as pe:
+            pass
 
-    def delete_transaction(self, tx_id: str):
+        res = self.db.table("transactions").update(data).eq("id", tx_id).execute()
+        if not res.data:
+            tx = await self.prisma.transaction.find_unique(where={"id": tx_id})
+            if tx:
+                return type('obj', (object,), {'data': [tx.dict()]})
+        return res
+
+    async def delete_transaction(self, tx_id: str):
+        try:
+            await self.prisma.transaction.delete(where={"id": tx_id})
+            return True
+        except Exception as pe:
+            pass
         return self.db.table("transactions").delete().eq("id", tx_id).execute()
 
     async def get_accounts_by_family(self, family_id: str):

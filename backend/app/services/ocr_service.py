@@ -61,20 +61,34 @@ def get_openai_client():
 def get_easyocr_reader():
     return None
 
-def init_gemini():
-    global _gemini_client, _gemini_client_initialized
-    if _gemini_client_initialized and _gemini_client is not None:
+# Pool of Gemini clients for automatic key rotation
+_gemini_clients: List[Tuple[str, Any]] = []  # List of (api_key_masked, client)
+_current_gemini_index = 0
+
+def init_gemini() -> bool:
+    global _gemini_clients
+    if _gemini_clients:
         return True
-        
-    api_key = os.getenv("GEMINI_API_KEY")
-    if api_key and GEMINI_AVAILABLE:
+
+    # Read from GEMINI_API_KEYS or GEMINI_API_KEY (supports comma-separated list of keys)
+    raw_keys = os.getenv("GEMINI_API_KEYS") or os.getenv("GEMINI_API_KEY", "")
+    key_list = [k.strip() for k in raw_keys.split(",") if k.strip()]
+
+    if not key_list or not GEMINI_AVAILABLE:
+        return False
+
+    _gemini_clients = []
+    for k in key_list:
         try:
-            _gemini_client = genai_sdk.Client(api_key=api_key)
-            _gemini_client_initialized = True
-            return True
+            client = genai_sdk.Client(api_key=k)
+            masked = f"...{k[-6:]}" if len(k) > 6 else "key"
+            _gemini_clients.append((masked, client))
         except Exception as e:
-            logger.error(f"Error initializing Gemini client: {e}")
-            _gemini_client_initialized = False
+            logger.error(f"Failed to create Gemini client for key: {e}")
+
+    if _gemini_clients:
+        logger.info(f"Initialized Gemini pool with {len(_gemini_clients)} API key(s).")
+        return True
     return False
 
 class OCRExtractionResult(BaseModel):
@@ -86,129 +100,104 @@ class OCRExtractionResult(BaseModel):
 
 async def extract_receipt_data(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
     """
-    Orchestrates OCR extraction based on the configured provider.
+    Orchestrates OCR extraction with multi-provider resilience:
+    1. Try Gemini (with multi-key rotation and multi-model fallback: 2.0-flash -> 1.5-flash)
+    2. If Gemini fails or quota is exhausted, seamlessly fallback to local Tesseract OCR.
     """
-    provider = os.getenv("OCR_PROVIDER", "easyocr").lower()
+    provider = os.getenv("OCR_PROVIDER", "gemini").lower()
     
     if provider == "openai":
         return await _extract_openai(file_bytes, mime_type)
     elif provider == "tesseract":
         return await _extract_tesseract(file_bytes, mime_type, categories)
-    elif provider == "gemini":
-        return await _extract_gemini(file_bytes, mime_type, categories)
     else:
-        # STRATEGY: Gemini-First for speed/intelligence.
-        # Tesseract is the local fallback.
-        
-        if os.getenv("GEMINI_API_KEY"):
-            logger.info("Using Gemini AI as primary provider for maximum speed and accuracy...")
+        # Default: Gemini with automatic failover to Tesseract
+        if init_gemini():
             try:
                 result = await _extract_gemini(file_bytes, mime_type, categories)
-                if result.amount is not None:
+                if result.amount is not None or result.description:
                     return result
             except Exception as e:
-                logger.warning(f"Gemini primary failed (likely quota): {e}. Falling back to local OCR...")
+                logger.warning(f"All Gemini attempts failed ({e}). Falling back to local Tesseract OCR...")
+        else:
+            logger.warning("Gemini not configured or unavailable. Using Tesseract OCR directly.")
 
-        # Fallback to Local OCR (Tesseract)
+        # Local fallback (Tesseract)
         return await _extract_tesseract(file_bytes, mime_type, categories)
 
-async def _extract_openai(file_bytes: bytes, mime_type: str) -> OCRExtractionResult:
-    """Original implementation using GPT-4o-mini"""
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError("OPENAI_API_KEY environment variable is not set.")
-
-    image_bytes, current_mime = _prepare_image(file_bytes, mime_type)
-    base64_image = base64.b64encode(image_bytes).decode('utf-8')
-    data_uri = f"data:{current_mime};base64,{base64_image}"
-
-    prompt = """
-    Analiza la siguiente imagen de un recibo o factura y extrae la siguiente información:
-    1. El "monto" total a pagar (solo el número decimal, sin símbolos de moneda).
-    2. La "fecha" de la transacción, formateada en ISO 8601 (YYYY-MM-DDTHH:MM). Si no hay hora, asume 12:00.
-    3. Una "descripción" breve del gasto que incluya el nombre del comercio.
-    4. Una "categoría" sugerida para este gasto.
-
-    Devuelve la respuesta estrictamente en formato JSON:
-    {
-      "amount": número flotante o null,
-      "date": "YYYY-MM-DDTHH:MM" o null,
-      "description": "string" o null,
-      "category": "string" o null
-    }
-    """
-
-    try:
-        c = get_openai_client()
-        response = await c.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": data_uri}}]}],
-            response_format={ "type": "json_object" },
-            max_tokens=300
-        )
-        data = json.loads(response.choices[0].message.content)
-        return OCRExtractionResult(**data)
-    except Exception as e:
-        logger.error(f"OpenAI API Error: {str(e)}")
-        raise e
-
-async def _extract_tesseract(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
-    try:
-        image_bytes, _ = _prepare_image(file_bytes, mime_type)
-        image = Image.open(io.BytesIO(image_bytes))
-        text = pytesseract.image_to_string(image, lang='spa+eng')
-        return _process_raw_text(text, categories)
-    except Exception as e:
-        raise ValueError(f"Error Tesseract: {str(e)}")
-
 async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
-    """Implementation using Google Gemini via the new google.genai SDK."""
-    if not init_gemini() or _gemini_client is None:
-        raise ValueError("Gemini API Key not set or library not found.")
+    """
+    Implementation using Google Gemini via google.genai SDK.
+    Supports multi-key pool rotation on 429/quota limits, and model fallback.
+    """
+    global _gemini_clients, _current_gemini_index
+    if not init_gemini() or not _gemini_clients:
+        raise ValueError("No valid Gemini API keys configured.")
 
-    image_bytes, _ = _prepare_image(file_bytes, mime_type)
-    
+    image_bytes, detected_mime = _prepare_image(file_bytes, mime_type)
+
     prompt = f"""
     Eres un experto en contabilidad. Analiza esta factura/recibo y extrae CRIMINALMENTE EXACTO:
-    1. 'amount': El Monto TOTAL final a pagar (número puro). 
-       - ¡CUIDADO! Si ves '190.400,00' el monto es 190400.0. NO agregues ceros extra.
+    1. 'amount': El Monto TOTAL final a pagar (número puro sin símbolos).
+       - Si ves '190.400,00' el monto es 190400.0. NO agregues ceros extra.
        - Si ves millones como 1'160.000 es 1160000.0.
-    2. 'date': La fecha de la transacción (YYYY-MM-DDTHH:MM).
+    2. 'date': La fecha de la transacción (YYYY-MM-DDTHH:MM). Si no hay hora, asume 12:00.
     3. 'description': Nombre del establecimiento y breve resumen de compra.
     4. 'category': Elige la mejor categoría de esta lista: {categories if categories else "Comida, Transporte, Servicios, Vivienda, Entretenimiento, Salud, Otros"}.
-    5. 'nature': Clasifica si es un 'Gasto', 'Ingreso' o 'Transferencia'. 
-       - Si es una factura de VENTA recibida, es un 'Gasto'.
-       - Si es un recibo de PAGO a tu favor, es un 'Ingreso'.
+    5. 'nature': Clasifica si es un 'Gasto', 'Ingreso' o 'Transferencia'.
+       - Factura de venta o compra recibida = 'Gasto'.
+       - Recibo de cobro o pago a favor = 'Ingreso'.
 
-    IMPORTANTE: Si no estás seguro de algo, devuelve null. 
+    IMPORTANTE: Si no estás seguro de algo, devuelve null.
     Respuesta puramente en JSON:
     {{"amount": null, "date": null, "description": null, "category": "Otros", "nature": "Gasto"}}
     """
 
-    try:
-        import base64 as b64
-        image_b64 = b64.b64encode(image_bytes).decode('utf-8')
-        
-        assert _gemini_client is not None, "Gemini client must be initialized"
-        response = await _gemini_client.aio.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[
-                genai_sdk.types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg'),
-                prompt
-            ]
-        )
-        
-        text_resp = response.text.strip()
-        if "```json" in text_resp:
-            text_resp = text_resp.split("```json")[1].split("```")[0].strip()
-        elif "```" in text_resp:
-            text_resp = text_resp.split("```")[1].split("```")[0].strip()
-            
-        logger.info(f"Gemini RAW Response: {text_resp}")
-        data = json.loads(text_resp)
-        return OCRExtractionResult(**data)
-    except Exception as e:
-        logger.error(f"Gemini API Error: {str(e)}")
-        raise e
+    models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    num_keys = len(_gemini_clients)
+    last_error = None
+
+    # Rotate through all available keys if needed
+    for attempt in range(num_keys):
+        key_idx = (_current_gemini_index + attempt) % num_keys
+        masked_key, client = _gemini_clients[key_idx]
+
+        for model_name in models_to_try:
+            try:
+                logger.info(f"Attempting Gemini OCR with key [{masked_key}] and model [{model_name}]...")
+                response = await client.aio.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        genai_sdk.types.Part.from_bytes(data=image_bytes, mime_type=detected_mime),
+                        prompt
+                    ]
+                )
+
+                text_resp = response.text.strip()
+                if "```json" in text_resp:
+                    text_resp = text_resp.split("```json")[1].split("```")[0].strip()
+                elif "```" in text_resp:
+                    text_resp = text_resp.split("```")[1].split("```")[0].strip()
+
+                logger.info(f"Gemini [{masked_key}] Success: {text_resp}")
+                data = json.loads(text_resp)
+                # Update current active key index to this successful one
+                _current_gemini_index = key_idx
+                return OCRExtractionResult(**data)
+
+            except Exception as e:
+                err_str = str(e).lower()
+                logger.warning(f"Gemini error with key [{masked_key}], model [{model_name}]: {e}")
+                last_error = e
+                # If quota / rate limit (429 / resource exhausted), try next key immediately
+                if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
+                    logger.info(f"Key [{masked_key}] hit quota limit. Switching to next key in pool...")
+                    break  # Break out of model loop to try next key in outer loop
+                # If model not found (404), continue to next model with the same key
+                elif "404" in err_str or "not found" in err_str:
+                    continue
+
+    raise Exception(f"All Gemini keys/models exhausted. Last error: {last_error}")
 
 async def _extract_easyocr(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
     if not EASYOCR_AVAILABLE: raise ImportError("EasyOCR no está instalado.")
@@ -454,16 +443,35 @@ def _process_raw_text(text: str, categories: Optional[List[str]] = None) -> OCRE
     }
     return OCRExtractionResult.model_validate(data)
 
-def _prepare_image(file_bytes: bytes, mime_type: str):
+def _prepare_image(file_bytes: bytes, mime_type: str) -> Tuple[bytes, str]:
     if mime_type == "application/pdf":
         try:
             doc = fitz.open(stream=file_bytes, filetype="pdf")
             page = doc.load_page(0)
-            pix = page.get_pixmap()
+            pix = page.get_pixmap(dpi=150)
             image_bytes = pix.tobytes("jpg")
             doc.close()
             return image_bytes, "image/jpeg"
         except Exception as e:
             logger.error(f"PDF Error: {e}")
             raise ValueError(f"No se pudo procesar el PDF: {e}")
-    return file_bytes, mime_type
+
+    # Optimize standard images (PNG, WEBP, HEIC, JPG, etc.)
+    try:
+        image = Image.open(io.BytesIO(file_bytes))
+        # Convert RGBA / P / CMYK to RGB
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Downscale if excessively large (keeps OCR fast and well within API limits)
+        max_dim = 1800
+        if max(image.size) > max_dim:
+            image.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+        out_buffer = io.BytesIO()
+        image.save(out_buffer, format="JPEG", quality=85)
+        return out_buffer.getvalue(), "image/jpeg"
+    except Exception as e:
+        logger.warning(f"Image optimization skipped: {e}")
+        return file_bytes, mime_type or "image/jpeg"
+

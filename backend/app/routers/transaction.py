@@ -59,6 +59,7 @@ async def get_transactions(
     return await service.get_transactions(user.id, scope, start_date, end_date, limit)
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)
+@router.patch("/{transaction_id}/", response_model=TransactionResponse, include_in_schema=False)
 async def update_transaction(
     transaction_id: str, 
     updates: TransactionUpdate, 
@@ -71,6 +72,7 @@ async def update_transaction(
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{transaction_id}")
+@router.delete("/{transaction_id}/", include_in_schema=False)
 async def delete_transaction(
     transaction_id: str, 
     user = Depends(get_current_user),

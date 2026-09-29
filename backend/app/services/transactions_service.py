@@ -26,7 +26,7 @@ class TransactionsService(BaseService):
         if isinstance(data.get('date'), datetime):
             data['date'] = data['date'].isoformat()
             
-        res = self.repository.insert_transaction(data)
+        res = await self.repository.insert_transaction(data)
         if not res.data:
             raise Exception("Failed to create transaction")
         
@@ -39,7 +39,10 @@ class TransactionsService(BaseService):
         if data['type'] == 'transfer' and data.get('target_account_id'):
             await self._update_account_balance(data['target_account_id'], amount)
 
-        return res.data[0]
+        created_tx = res.data[0]
+        if isinstance(created_tx.get('date'), datetime):
+            created_tx['date'] = created_tx['date'].isoformat()
+        return created_tx
 
     async def get_transactions(self, user_id: str, scope: str = "family", start_date: str = None, end_date: str = None, limit: int = None):
         profile_res = await self.repository.get_user_profile(user_id)
@@ -137,8 +140,13 @@ class TransactionsService(BaseService):
         if new_tx_state['type'] == 'transfer' and new_tx_state.get('target_account_id'):
             await self._update_account_balance(new_tx_state['target_account_id'], new_tx_state['amount'])
 
-        res = self.repository.update_transaction(transaction_id, data)
-        return res.data[0]
+        res = await self.repository.update_transaction(transaction_id, data)
+        if not res.data:
+            raise Exception("Failed to update transaction")
+        updated_tx = res.data[0]
+        if isinstance(updated_tx.get('date'), datetime):
+            updated_tx['date'] = updated_tx['date'].isoformat()
+        return updated_tx
 
     async def delete_transaction(self, user_id: str, transaction_id: str):
         profile_res = await self.repository.get_user_profile(user_id)
@@ -157,7 +165,7 @@ class TransactionsService(BaseService):
         if transaction['type'] == 'transfer' and transaction.get('target_account_id'):
             await self._update_account_balance(transaction['target_account_id'], -transaction['amount'])
 
-        self.repository.delete_transaction(transaction_id)
+        await self.repository.delete_transaction(transaction_id)
         return True
 
     async def _update_account_balance(self, account_id: str, delta: float):
