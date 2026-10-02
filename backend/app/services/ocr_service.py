@@ -153,7 +153,10 @@ async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optiona
     {{"amount": null, "date": null, "description": null, "category": "Otros", "nature": "Gasto"}}
     """
 
-    models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    # Models ordered by preference. Older versions (1.5-flash, 2.0-flash) are
+    # deprecated by Google as of 2026 and return 404 NOT_FOUND.
+    # Ordered from newest/most-recommended down to the most stable fallback.
+    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-pro']
     num_keys = len(_gemini_clients)
     last_error = None
 
@@ -214,6 +217,43 @@ async def _extract_easyocr(file_bytes: bytes, mime_type: str, categories: Option
         return _process_raw_text(text, categories)
     except Exception as e:
         raise ValueError(f"Error EasyOCR: {str(e)}")
+
+async def _extract_tesseract(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
+    """
+    Local Tesseract OCR fallback. Uses pytesseract + Pillow to extract text
+    from the image and then delegates field extraction to _process_raw_text.
+    This is the last line of defense when cloud providers are unavailable.
+    """
+    try:
+        image_bytes, detected_mime = _prepare_image(file_bytes, mime_type)
+
+        # PDF is already converted to JPEG by _prepare_image; we only handle
+        # raster images here. Raise early so the caller knows this path
+        # cannot continue.
+        if detected_mime == "application/pdf":
+            raise ValueError("Tesseract fallback does not handle PDF. Use Gemini for PDFs.")
+
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Spanish + English for receipts in LATAM (handles $ amounts, dates)
+        text = pytesseract.image_to_string(image, lang="spa+eng")
+        logger.info(f"Tesseract extracted {len(text)} chars from image")
+
+        if not text or not text.strip():
+            logger.warning("Tesseract returned empty text")
+            return OCRExtractionResult(
+                amount=None, date=None, description=None,
+                category="Otros", nature="Gasto"
+            )
+
+        return _process_raw_text(text, categories)
+    except Exception as e:
+        logger.error(f"Tesseract extraction failed: {e}")
+        # Return a valid empty result so the frontend can still render the form
+        return OCRExtractionResult(
+            amount=None, date=None, description=None,
+            category="Otros", nature="Gasto"
+        )
 
 def _process_raw_text(text: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
     # Use getattr and dynamic access to avoid strict indexing lints
