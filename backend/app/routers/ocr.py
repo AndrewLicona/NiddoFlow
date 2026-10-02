@@ -20,11 +20,17 @@ async def extract_receipt(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only image and PDF files are supported")
     try:
         content = await file.read()
+        # Reject oversized uploads early to avoid burning Gemini tokens/time
+        # on giant phone photos. 10 MB covers any sane receipt at 4K resolution.
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Image too large (max 10 MB)")
         from app.db.prisma_db import prisma
         categories_db = await prisma.category.find_many()
         category_names = [c.name for c in categories_db]
         result = await extract_receipt_data(content, file.content_type, categories=category_names)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error extracting receipt data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to process image: {str(e)}")
