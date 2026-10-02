@@ -2,6 +2,11 @@
 
 # NiddoFlow - Unified Deployment Script
 # Description: Automates the process of pulling, cleaning, and rebuilding the NiddoFlow stack.
+#
+# Usage:
+#   ./deploy.sh          # Quick deploy: git pull + restart (NO rebuild, ~10 seconds)
+#   ./deploy.sh --build  # Rebuild: pull + rebuild images + restart (~5-15 minutes)
+#   ./deploy.sh --full   # Deep: pull + rebuild + prune unused images (~10-20 minutes)
 
 # Modern colors for better UX
 CYAN='\033[0;36m'
@@ -9,6 +14,24 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
+
+# Parse flags
+REBUILD=false
+DEEP_CLEAN=false
+
+for arg in "$@"; do
+  case $arg in
+    --build)
+      REBUILD=true
+      ;;
+    --full|--deep)
+      REBUILD=true
+      DEEP_CLEAN=true
+      ;;
+    *)
+      ;;
+  esac
+done
 
 echo -e "${CYAN}🚀 Iniciando despliegue de NiddoFlow...${NC}"
 
@@ -29,15 +52,21 @@ fi
 echo -e "${CYAN}🛑 Deteniendo servicios actuales...${NC}"
 docker compose --env-file .env.production down
 
-# 4. Limpieza opcional (opción profunda)
-if [[ "$*" == *"--deep"* ]]; then
+# 4. Limpieza profunda (solo con --full/--deep)
+if [ "$DEEP_CLEAN" = true ]; then
     echo -e "${YELLOW}🧹 Realizando limpieza profunda (borrando imágenes y caché)...${NC}"
     docker system prune -af
 fi
 
 # 5. Construir e iniciar
-echo -e "${CYAN}🏗️ Construyendo y levantando servicios...${NC}"
-docker compose --env-file .env.production up -d --build
+if [ "$REBUILD" = true ]; then
+    echo -e "${CYAN}🏗️  Construyendo imágenes y levantando servicios (modo --build)...${NC}"
+    docker compose --env-file .env.production up -d --build
+else
+    echo -e "${CYAN}⚡ Levantando servicios sin reconstruir (modo rápido)...${NC}"
+    docker compose --env-file .env.production up -d
+fi
+
 BUILD_EXIT=$?
 
 if [ $BUILD_EXIT -ne 0 ]; then
@@ -51,5 +80,12 @@ echo -e "${CYAN}🔍 Verificando estado de los servicios...${NC}"
 sleep 5
 docker ps | grep niddoflow
 
+# 7. Resumen
+echo ""
 echo -e "${GREEN}✅ ¡Despliegue completado satisfactoriamente!${NC}"
 echo -e "${GREEN}Accede a: https://niddoflow.miserverlab.xyz${NC}"
+
+if [ "$REBUILD" = false ]; then
+    echo ""
+    echo -e "${YELLOW}💡 Tip: Si modificaste código o Dockerfiles, usa './deploy.sh --build' para reconstruir.${NC}"
+fi
