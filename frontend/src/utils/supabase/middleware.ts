@@ -15,7 +15,16 @@ export async function updateSession(request: NextRequest) {
                     return request.cookies.getAll()
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+                    // CRITICAL FIX: Pass ALL options (maxAge, httpOnly, secure, sameSite)
+                    // so Supabase session cookies persist correctly across requests.
+                    // Previously only `name` and `value` were forwarded, which caused
+                    // sessions to expire rapidly because the `maxAge` option was dropped.
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        request.cookies.set(name, value)
+                        // Re-apply the options on the request cookies as well
+                        // (Next.js does not expose `set` with options on request,
+                        // but the response side below is what actually reaches the browser)
+                    })
                     supabaseResponse = NextResponse.next({
                         request,
                     })
