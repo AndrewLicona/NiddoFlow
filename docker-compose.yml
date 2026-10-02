@@ -13,18 +13,20 @@ services:
         - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
     container_name: niddoflow-frontend
     restart: unless-stopped
+    # Use host network to bypass UFW/Docker bridge blocking DNS resolution.
+    # Port 3030 chosen because 3000 is occupied by another service on this host.
+    network_mode: host
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - NEXT_PUBLIC_API_URL=https://niddoflow.miserverlab.xyz/api
       - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
-      - INTERNAL_API_URL=http://backend:8000
+      - INTERNAL_API_URL=http://localhost:8000
+      - PORT=3030
+      - HOSTNAME=0.0.0.0
     dns:
       - 8.8.8.8
       - 1.1.1.1
-
-    networks:
-      - niddoflow-network
     depends_on:
       - backend
 
@@ -35,6 +37,9 @@ services:
       network: host
     container_name: niddoflow-backend
     restart: unless-stopped
+    # Backend also uses host network because it needs to reach Supabase directly
+    # for JWT verification, OCR (Gemini API), and Prisma queries.
+    network_mode: host
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -45,8 +50,6 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OCR_PROVIDER=gemini
       - DATABASE_URL=${DATABASE_URL}
-    networks:
-      - niddoflow-network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -62,6 +65,10 @@ services:
       - "3100:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    # Nginx stays on bridge network and reaches the host-networked services
+    # via host.docker.internal (mapped to the host gateway IP).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - niddoflow-network
     depends_on:
