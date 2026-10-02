@@ -153,10 +153,13 @@ async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optiona
     {{"amount": null, "date": null, "description": null, "category": "Otros", "nature": "Gasto"}}
     """
 
-    # Models ordered by preference. Older versions (1.5-flash, 2.0-flash) are
-    # deprecated by Google as of 2026 and return 404 NOT_FOUND.
-    # Ordered from newest/most-recommended down to the most stable fallback.
-    models_to_try = ['gemini-2.5-flash', 'gemini-1.5-pro']
+    # Models ordered by preference. As of October 2026:
+    #   - gemini-3.8-flash      → recommended for new projects (Google's official guidance)
+    #   - gemini-3.5-flash-lite → cheaper alternative for high-volume workloads
+    #   - gemini-2.5-flash      → RESTRICTED to past users only, returns 404/503 for new projects
+    #   - gemini-1.5-pro/flash  → DEPRECATED, returns 404
+    # We avoid 2.5-flash because this project never called it before.
+    models_to_try = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
     num_keys = len(_gemini_clients)
     last_error = None
 
@@ -196,6 +199,31 @@ async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optiona
                 if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
                     logger.info(f"Key [{masked_key}] hit quota limit. Switching to next key in pool...")
                     break  # Break out of model loop to try next key in outer loop
+                # If 503 (high demand), try once more with the same model after a short wait
+                elif "503" in err_str or "unavailable" in err_str:
+                    import asyncio as _asyncio
+                    logger.info(f"Model [{model_name}] returning 503 (high demand). Retrying in 1.5s...")
+                    await _asyncio.sleep(1.5)
+                    try:
+                        response = await client.aio.models.generate_content(
+                            model=model_name,
+                            contents=[
+                                genai_sdk.types.Part.from_bytes(data=image_bytes, mime_type=detected_mime),
+                                prompt
+                            ]
+                        )
+                        text_resp = response.text.strip()
+                        if "```json" in text_resp:
+                            text_resp = text_resp.split("```json")[1].split("```")[0].strip()
+                        elif "```" in text_resp:
+                            text_resp = text_resp.split("```")[1].split("```")[0].strip()
+                        logger.info(f"Gemini [{masked_key}] Success on retry: {text_resp}")
+                        data = json.loads(text_resp)
+                        _current_gemini_index = key_idx
+                        return OCRExtractionResult(**data)
+                    except Exception as retry_err:
+                        logger.warning(f"Retry also failed: {retry_err}")
+                        continue  # Try next model
                 # If model not found (404), continue to next model with the same key
                 elif "404" in err_str or "not found" in err_str:
                     continue
