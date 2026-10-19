@@ -11,9 +11,9 @@ class AccountsService(BaseService):
         profile_res = self.repository.get_user_profile(user_id)
         if not profile_res.data:
             return []
-        
+
         family_id = profile_res.data[0].get('family_id')
-        
+
         if not family_id:
             res = self.repository.get_accounts_by_user(user_id)
             return res.data or []
@@ -22,7 +22,7 @@ class AccountsService(BaseService):
         all_accounts = res.data or []
 
         return [
-            acc for acc in all_accounts 
+            acc for acc in all_accounts
             if acc['type'] == 'joint' or (acc['type'] == 'personal' and acc['user_id'] == str(user_id))
         ]
 
@@ -30,9 +30,9 @@ class AccountsService(BaseService):
         profile_res = self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
              raise Exception("User does not belong to a family")
-        
+
         family_id = profile_res.data[0]['family_id']
-        
+
         data = {**account_data}
         data['family_id'] = family_id
         if data.get('type') == 'personal':
@@ -40,23 +40,29 @@ class AccountsService(BaseService):
         else:
             data['user_id'] = None
 
+        initial_balance = float(data.get('balance', 0) or 0)
+        # Set initial account balance to 0 in DB if we record a "Saldo Inicial" transaction,
+        # so the database trigger sets the balance once via the transaction.
+        data['balance'] = 0
+
         res = self.repository.create_account(data)
         if not res.data:
             raise Exception("Failed to create account")
-        
+
         new_account = res.data[0]
-        
-        if new_account.get('balance', 0) > 0:
+
+        if initial_balance > 0:
             tx_data = {
                 "family_id": family_id,
                 "user_id": str(user_id),
                 "account_id": str(new_account['id']),
                 "category_id": None,
                 "description": "Saldo Inicial",
-                "amount": new_account['balance'],
+                "amount": initial_balance,
                 "type": "income",
                 "date": datetime.utcnow().isoformat()
             }
             self.repository.create_transaction(tx_data)
-            
+            new_account['balance'] = initial_balance
+
         return new_account

@@ -11,24 +11,24 @@ class DebtsService(BaseService):
         profile_res = self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
             return []
-        
+
         family_id = profile_res.data[0]['family_id']
         res = self.repository.get_debts_by_family(family_id)
         return res.data or []
 
-    async def create_debt(self, user_id: str, debt_data: dict):
+    async def create_debt(self, user_id: str, debt_id_data: dict):
+        # Implementation for creating debt without manual balance update since insert_transaction handles it via trigger
         profile_res = self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
             raise Exception("User not in a family")
-        
+
         family_id = profile_res.data[0]['family_id']
-        
-        data = {**debt_data}
+
+        data = {**debt_id_data}
         data['family_id'] = family_id
         if data.get('due_date') and isinstance(data['due_date'], datetime):
             data['due_date'] = data['due_date'].isoformat()
-        
-        # Auto-assign category
+
         if not data.get('category_id'):
             default_name = 'Préstamos Recibidos' if data.get('type') == 'to_pay' else 'Préstamos Otorgados'
             cat_res = self.repository.get_default_category(default_name)
@@ -38,15 +38,12 @@ class DebtsService(BaseService):
         res = self.repository.insert_debt(data)
         if not res.data:
             raise Exception("Failed to create debt")
-        
+
         new_debt = res.data[0]
         account_id = data.get('account_id')
-        
+
         if account_id:
             tx_type = 'income' if new_debt['type'] == 'to_pay' else 'expense'
-            impact = new_debt['total_amount'] if tx_type == 'income' else -new_debt['total_amount']
-            
-            # Create Transaction
             tx_data = {
                 "family_id": family_id,
                 "user_id": str(user_id),
@@ -58,12 +55,6 @@ class DebtsService(BaseService):
                 "date": datetime.utcnow().isoformat()
             }
             self.repository.insert_transaction(tx_data)
-            
-            # Update Account
-            acc_res = self.repository.get_account_balance(str(account_id))
-            if acc_res.data:
-                new_balance = float(acc_res.data[0]['balance']) + impact
-                self.repository.update_account_balance(str(account_id), new_balance)
 
         return new_debt
 
@@ -85,7 +76,7 @@ class DebtsService(BaseService):
         profile_res = self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):
             raise Exception("User not in a family")
-        
+
         family_id = profile_res.data[0]['family_id']
         amount = float(payment_data['amount'])
         account_id = payment_data['accountId']
@@ -94,9 +85,7 @@ class DebtsService(BaseService):
         debt_type = payment_data['type']
         receipt_url = payment_data.get('receiptUrl')
 
-        # 1. Create Transaction
         tx_type = 'expense' if debt_type == 'to_pay' else 'income'
-        impact = -amount if tx_type == 'expense' else amount
 
         tx_data = {
             "family_id": family_id,
@@ -109,8 +98,7 @@ class DebtsService(BaseService):
             "date": datetime.utcnow().isoformat(),
             "receipt_url": receipt_url
         }
-        
-        # Auto-assign category if missing
+
         if not tx_data["category_id"]:
             default_name = 'Préstamos Otorgados' if debt_type == 'to_pay' else 'Préstamos Recibidos'
             cat_res = self.repository.get_default_category(default_name)
@@ -119,17 +107,10 @@ class DebtsService(BaseService):
 
         self.repository.insert_transaction(tx_data)
 
-        # 2. Update Account Balance
-        acc_res = self.repository.get_account_balance(str(account_id))
-        if acc_res.data:
-            new_balance = float(acc_res.data[0]['balance']) + impact
-            self.repository.update_account_balance(str(account_id), new_balance)
-
-        # 3. Update Debt
         debt_res = self.repository.get_debt_by_id(debt_id, family_id)
         if not debt_res.data:
             raise Exception("Debt not found")
-        
+
         debt = debt_res.data[0]
         new_remaining = max(0, float(debt['remaining_amount']) - amount)
         new_status = 'paid' if new_remaining <= 0 else 'active'

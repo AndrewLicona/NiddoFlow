@@ -86,12 +86,20 @@ def init_gemini() -> bool:
         return True
     return False
 
+class OCRItemResult(BaseModel):
+    item_name: str = Field(description="Name or description of the purchased item")
+    quantity: float = Field(description="Quantity purchased", default=1.0)
+    unit_price: float = Field(description="Price per single unit")
+    total_price: float = Field(description="Total price for this item line")
+    category: Optional[str] = Field(description="Suggested category for this item if applicable", default=None)
+
 class OCRExtractionResult(BaseModel):
     amount: Optional[float] = Field(description="Total amount of the receipt or invoice", default=None)
     date: Optional[str] = Field(description="Date of the receipt in YYYY-MM-DDTHH:MM format", default=None)
     description: Optional[str] = Field(description="A brief description or title for the expense", default=None)
     category: Optional[str] = Field(description="Suggested category for the expense", default=None)
     nature: Optional[str] = Field(description="Nature of the flow: Ingreso, Gasto, or Transferencia", default="Gasto")
+    items: Optional[List[OCRItemResult]] = Field(description="List of individual items/products bought if itemized on the receipt", default=[])
 
 async def extract_receipt_data(file_bytes: bytes, mime_type: str, categories: Optional[List[str]] = None) -> OCRExtractionResult:
     """
@@ -135,9 +143,18 @@ async def _extract_gemini(file_bytes: bytes, mime_type: str, categories: Optiona
     # instructions. Removing the verbose preamble cuts inference tokens
     # (and therefore cost/latency) without losing accuracy.
     cat_list = categories if categories else "Comida, Transporte, Servicios, Vivienda, Entretenimiento, Salud, Otros"
-    prompt = f"""Analiza este recibo/factura y devuelve SOLO este JSON (sin explicaciones):
-{{"amount": <total final como número, sin símbolos, ej 190400.0>, "date": "<YYYY-MM-DDTHH:MM>", "description": "<establecimiento + breve resumen>", "category": "<elige de: {cat_list}>", "nature": "Gasto|Ingreso|Transferencia"}}
-Si no estás seguro de un campo, devuelve null. Para 'amount' usa el TOTAL FINAL (después de impuestos), no subtotal ni IVA."""
+    prompt = f"""Analiza este recibo/factura detalladamente y devuelve SOLO este JSON (sin explicaciones):
+{{
+  "amount": <total final como número, sin símbolos, ej 190400.0>,
+  "date": "<YYYY-MM-DDTHH:MM>",
+  "description": "<establecimiento + breve resumen>",
+  "category": "<elige de: {cat_list}>",
+  "nature": "Gasto|Ingreso|Transferencia",
+  "items": [
+    {{"item_name": "<nombre del producto>", "quantity": <cantidad, ej 1.0>, "unit_price": <precio unitario>, "total_price": <precio total línea>, "category": "<categoría opcional>"}}
+  ]
+}}
+Si no estás seguro de un campo, devuelve null. Para 'amount' usa el TOTAL FINAL (después de impuestos). Si el recibo tiene productos o ítems detallados, lístalos en "items", de lo contrario deja "items" como lista vacía []."""
 
     # Models ordered by latency. As of October 2026:
     #   - gemini-3.5-flash-lite → fastest, cheapest, sufficient for structured JSON extraction

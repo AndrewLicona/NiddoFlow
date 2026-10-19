@@ -4,27 +4,28 @@ from app.repositories.base import BaseRepository
 
 class TransactionsRepository(BaseRepository):
     async def get_user_profile(self, user_id: str):
-        # Use Prisma for async/speed
         profile = await self.prisma.profile.find_unique(where={"id": user_id})
-        # Mocking Supabase response structure for compatibility
         return type('obj', (object,), {'data': [profile.dict()] if profile else []})
 
     async def get_transaction_by_id(self, tx_id: str):
-        tx = await self.prisma.transaction.find_unique(where={"id": tx_id})
+        tx = await self.prisma.transaction.find_unique(
+            where={"id": tx_id},
+            include={"items": True}
+        )
         return type('obj', (object,), {'data': [tx.dict()] if tx else []})
 
     async def insert_transaction(self, data: dict):
         try:
             prisma_data = {}
             for k, v in data.items():
-                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id']:
+                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id', 'receipt_url']:
                     prisma_data[k] = v
                 elif k == 'date' and v:
                     if isinstance(v, str):
                         prisma_data['date'] = datetime.fromisoformat(v.replace('Z', '+00:00'))
                     else:
                         prisma_data['date'] = v
-            created = await self.prisma.transaction.create(data=prisma_data)
+            created = await self.prisma.transaction.create(data=prisma_data, include={"items": True})
             if created:
                 return type('obj', (object,), {'data': [created.dict()]})
         except Exception as pe:
@@ -35,7 +36,7 @@ class TransactionsRepository(BaseRepository):
         try:
             prisma_data = {}
             for k, v in data.items():
-                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id']:
+                if k in ['description', 'amount', 'type', 'category_id', 'account_id', 'user_id', 'family_id', 'receipt_url']:
                     prisma_data[k] = v
                 elif k == 'date' and v:
                     if isinstance(v, str):
@@ -45,7 +46,8 @@ class TransactionsRepository(BaseRepository):
             if prisma_data:
                 updated = await self.prisma.transaction.update(
                     where={"id": tx_id},
-                    data=prisma_data
+                    data=prisma_data,
+                    include={"items": True}
                 )
                 if updated:
                     return type('obj', (object,), {'data': [updated.dict()]})
@@ -54,18 +56,31 @@ class TransactionsRepository(BaseRepository):
 
         res = self.db.table("transactions").update(data).eq("id", tx_id).execute()
         if not res.data:
-            tx = await self.prisma.transaction.find_unique(where={"id": tx_id})
+            tx = await self.prisma.transaction.find_unique(where={"id": tx_id}, include={"items": True})
             if tx:
                 return type('obj', (object,), {'data': [tx.dict()]})
         return res
 
     async def delete_transaction(self, tx_id: str):
         try:
+            await self.prisma.transactionitem.delete_many(where={"transaction_id": tx_id})
             await self.prisma.transaction.delete(where={"id": tx_id})
             return True
         except Exception as pe:
             pass
         return self.db.table("transactions").delete().eq("id", tx_id).execute()
+
+    async def insert_transaction_item(self, item_data: dict):
+        try:
+            return await self.prisma.transactionitem.create(data=item_data)
+        except Exception:
+            return self.db.table("transaction_items").insert(item_data).execute()
+
+    async def delete_transaction_items(self, transaction_id: str):
+        try:
+            return await self.prisma.transactionitem.delete_many(where={"transaction_id": transaction_id})
+        except Exception:
+            return self.db.table("transaction_items").delete().eq("transaction_id", transaction_id).execute()
 
     async def get_accounts_by_family(self, family_id: str):
         accounts = await self.prisma.account.find_many(where={"family_id": family_id})
@@ -89,7 +104,6 @@ class TransactionsRepository(BaseRepository):
         return query.order(order_by, desc=desc).execute()
 
     async def get_categories(self, family_id: str):
-        # Use Prisma to fetch default or family specific categories
         categories = await self.prisma.category.find_many(
             where={
                 "OR": [
@@ -109,17 +123,18 @@ class TransactionsRepository(BaseRepository):
             "family_id": family_id,
             "account_id": {"in": account_ids}
         }
-        
+
         if start_date or end_date:
             where["date"] = {}
             if start_date: where["date"]["gte"] = start_date
             if end_date: where["date"]["lte"] = end_date
-            
+
         return await self.prisma.transaction.find_many(
             where=where,
             include={
                 "category": True,
-                "account": True
+                "account": True,
+                "items": True
             },
             order={"date": "desc"},
             take=limit
@@ -134,12 +149,13 @@ class TransactionsRepository(BaseRepository):
             where["date"] = {}
             if start_date: where["date"]["gte"] = start_date
             if end_date: where["date"]["lte"] = end_date
-            
+
         return await self.prisma.transaction.find_many(
             where=where,
             include={
                 "category": True,
-                "account": True
+                "account": True,
+                "items": True
             },
             order={"date": "desc"}
         )
