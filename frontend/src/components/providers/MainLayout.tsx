@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { Navigation } from '@/components/ui/organisms/Navigation';
+import { NiddoAIChat } from '@/components/ui/organisms/NiddoAIChat';
 import { createClient } from '@/utils/supabase/client';
 import { useEffect, useState } from 'react';
 
@@ -33,6 +34,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return (
         <div className={`antialiased min-h-screen transition-all duration-300 ${!hideNav ? 'mb-20 md:mb-0 md:pl-24' : ''}`}>
             {!hideNav && <Navigation />}
+            {!hideNav && <NiddoAIChat />}
             <div className={`w-full ${!hideNav ? 'max-w-7xl mx-auto' : ''}`}>
                 {children}
             </div>
