@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from app.db.prisma_db import prisma
 
@@ -34,16 +34,38 @@ class ChatService:
             family_id = profile.family_id
             accounts = await prisma.account.find_many(where={"family_id": family_id})
             budgets = await prisma.budget.find_many(where={"family_id": family_id}, include={"category": True})
-            transactions = await prisma.transaction.find_many(where={"family_id": family_id}, take=15, order={"date": "desc"}, include={"category": True, "account": True})
+
+            # Fetch transactions for current month & last 30 days to give rich context
+            now = datetime.utcnow()
+            start_of_month = datetime(now.year, now.month, 1)
+            transactions = await prisma.transaction.find_many(
+                where={
+                    "family_id": family_id,
+                    "date": {"gte": start_of_month}
+                },
+                order={"date": "desc"},
+                include={"category": True, "account": True}
+            )
+
+            # If fewer than 5 transactions this month, take the last 20 overall so the AI has plenty of history
+            if len(transactions) < 5:
+                transactions = await prisma.transaction.find_many(
+                    where={"family_id": family_id},
+                    take=25,
+                    order={"date": "desc"},
+                    include={"category": True, "account": True}
+                )
 
             acc_summary = ", ".join([f"{a.name} ({a.type}): ${a.balance:,.2f}" for a in accounts])
-            budget_summary = ", ".join([f"{b.category.name if b.category else 'General'}: ${b.spent if hasattr(b, 'spent') else 0}/${b.amount}" for b in budgets])
-            tx_summary = "; ".join([f"[{t.type}] {t.description}: ${t.amount} ({t.date.strftime('%Y-%m-%d')})" for t in transactions])
+            budget_summary = ", ".join([f"{b.category.name if b.category else 'General'}: ${b.spent if hasattr(b, 'spent') else 0}/${b.amount}" for b in budgets]) if budgets else "Sin presupuestos configurados."
 
-            return f"""Contexto financiero del hogar del usuario:
-- Cuentas y Saldos: {acc_summary}
-- Presupuestos: {budget_summary}
-- Últimos movimientos: {tx_summary}
+            tx_list_str = "; ".join([f"[{t.type}] {t.description}: ${t.amount:,.2f} ({t.date.strftime('%Y-%m-%d')} en {t.account.name if t.account else 'Cuenta'})" for t in transactions])
+            tx_summary = tx_list_str if tx_list_str else "No hay transacciones registradas."
+
+            return f"""Contexto financiero del hogar del usuario (Mes actual y movimientos recientes):
+- Cuentas y Saldos Actuales: {acc_summary}
+- Presupuestos Activos: {budget_summary}
+- Movimientos Registrados: {tx_summary}
 """
         except Exception as e:
             logger.error(f"Error fetching financial context for chat: {e}")
@@ -72,7 +94,12 @@ Ayudas a las familias y usuarios a gestionar sus finanzas, responder dudas sobre
 Aquí tienes información en tiempo real sobre el estado financiero actual del usuario:
 {context}
 
-Responde de manera clara, usando formato Markdown y viñetas si es necesario. Si te piden registrar gastos o acciones que no puedes hacer directamente por chat, guíalos amablemente a usar el formulario correspondiente."""
+INSTRUCCIONES DE FORMATO:
+- Responde de manera clara y directa.
+- Usa párrafos cortos separados por saltos de línea.
+- Utiliza viñetas (-) para listas o desglose de datos.
+- NUNCA uses asteriscos dobles (**) o markdown crudo para negritas si confunden la lectura; usa texto plano limpio o mayúsculas destacadas para títulos.
+- Si te piden registrar gastos o acciones que no puedes hacer directamente por chat, guíalos amablemente a usar el formulario correspondiente."""
 
         # Format history for Gemini
         contents = []
@@ -80,7 +107,7 @@ Responde de manera clara, usando formato Markdown y viñetas si es necesario. Si
             role = "user" if h.get("role") == "user" else "model"
             contents.append({"role": role, "parts": [{"text": h.get("content", "")}]})
 
-        contents.append({"role": "user", "parts": [{"text": message}]})
+        contents.append({"role": role if False else "user", "parts": [{"text": message}]})
 
         try:
             response = await self.client.aio.models.generate_content(
