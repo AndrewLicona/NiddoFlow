@@ -14,6 +14,9 @@ services:
     restart: unless-stopped
     ports:
       - "3030:3030"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -22,9 +25,6 @@ services:
       - INTERNAL_API_URL=http://backend:8100
       - PORT=3030
       - HOSTNAME=0.0.0.0
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     networks:
       - niddoflow-network
     depends_on:
@@ -38,9 +38,6 @@ services:
     restart: unless-stopped
     ports:
       - "8100:8100"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     environment:
       - PORT=8100
       - SUPABASE_URL=${SUPABASE_URL}
