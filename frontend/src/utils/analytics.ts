@@ -37,11 +37,15 @@ export function generateInsights(transactions: Transaction[], budgets: Budget[] 
     const currentMonthIncome = transactions.filter(t => parseISO(t.date) >= currentMonthStart && t.type === 'income');
     const lastMonthExpenses = transactions.filter(t => isWithinInterval(parseISO(t.date), { start: lastMonthStart, end: lastMonthEnd }) && t.type === 'expense');
 
-    // 1. Total Spend Comparison (MoM)
-    const currentTotalExpense = currentMonthExpenses.reduce((acc, t) => acc + Number(t.amount), 0);
-    const currentTotalIncome = currentMonthIncome.reduce((acc, t) => acc + Number(t.amount), 0);
+    // Total expenses across ALL transactions loaded if month has few
+    const totalExpensesAll = transactions.filter(t => t.type === 'expense');
+    const totalIncomeAll = transactions.filter(t => t.type === 'income');
+
+    const currentTotalExpense = currentMonthExpenses.length > 0 ? currentMonthExpenses.reduce((acc, t) => acc + Number(t.amount), 0) : totalExpensesAll.reduce((acc, t) => acc + Number(t.amount), 0);
+    const currentTotalIncome = currentMonthIncome.length > 0 ? currentMonthIncome.reduce((acc, t) => acc + Number(t.amount), 0) : totalIncomeAll.reduce((acc, t) => acc + Number(t.amount), 0);
     const lastTotalExpense = lastMonthExpenses.reduce((acc, t) => acc + Number(t.amount), 0);
 
+    // 1. Total Spend Comparison (MoM) or general activity
     if (lastTotalExpense > 0) {
         const percentChange = ((currentTotalExpense - lastTotalExpense) / lastTotalExpense) * 100;
 
@@ -53,7 +57,7 @@ export function generateInsights(transactions: Transaction[], budgets: Budget[] 
                 metric: 'Gastos al alza',
                 icon: 'TrendingUp'
             });
-        } else if (currentTotalExpense < lastTotalExpense && now.getDate() > 20) {
+        } else if (currentTotalExpense < lastTotalExpense) {
             insights.push({
                 id: 'mom-spend-lower',
                 type: 'success',
@@ -64,62 +68,24 @@ export function generateInsights(transactions: Transaction[], budgets: Budget[] 
         }
     }
 
-    // 2. Savings Rate (New)
+    // 2. Savings Rate
     if (currentTotalIncome > 0) {
         const savingsRate = ((currentTotalIncome - currentTotalExpense) / currentTotalIncome) * 100;
-        if (savingsRate > 20) {
+        if (savingsRate > 0) {
             insights.push({
                 id: 'savings-rate',
                 type: 'success',
-                message: `¡Excelente! Estás ahorrando el ${savingsRate.toFixed(0)}% de tus ingresos este mes.`,
+                message: `Tasa de ahorro actual del ${savingsRate.toFixed(0)}% sobre tus ingresos registrados.`,
                 metric: 'Salud Financiera',
                 icon: 'PiggyBank'
             });
         }
     }
 
-    // 3. Recurring Payments Detection (New)
-    const potentialRecurring = currentMonthExpenses.filter(ct =>
-        lastMonthExpenses.some(lt =>
-            lt.description === ct.description &&
-            Math.abs(lt.amount - ct.amount) < 100 // Tolerance
-        )
-    );
-    if (potentialRecurring.length > 0) {
-        insights.push({
-            id: 'recurring-detect',
-            type: 'info',
-            message: `Detectamos ${potentialRecurring.length} pagos recurrentes (ej. ${potentialRecurring[0].description}).`,
-            metric: 'Suscripciones',
-            icon: 'CalendarClock'
-        });
-    }
-
-    // 4. Budget Prediction (New)
-    if (budgets.length > 0) {
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const daysPassed = now.getDate();
-        const progressMonth = daysPassed / daysInMonth;
-
-        const atRiskBudget = budgets.find(b => {
-            const progressBudget = b.spent / b.amount;
-            return (progressBudget > progressMonth + 0.2) && b.percent < 100;
-        });
-
-        if (atRiskBudget) {
-            insights.push({
-                id: 'budget-risk',
-                type: 'warning',
-                message: `Cuidado con ${atRiskBudget.categories?.name || 'la categoría'}. A este ritmo excederás tu presupuesto antes de fin de mes.`,
-                metric: 'Proyección',
-                icon: 'Activity'
-            });
-        }
-    }
-
-    // 5. Top Category this month
+    // 3. Top Category
     const categoryTotals: Record<string, number> = {};
-    currentMonthExpenses.forEach(t => {
+    const activeExpenses = currentMonthExpenses.length > 0 ? currentMonthExpenses : totalExpensesAll;
+    activeExpenses.forEach(t => {
         const cat = t.categories?.name || 'Otros';
         categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(t.amount);
     });
@@ -133,34 +99,32 @@ export function generateInsights(transactions: Transaction[], budgets: Budget[] 
         }
     });
 
-    if (topCat && topCat !== 'Otros') {
+    if (topCat) {
         insights.push({
             id: 'top-cat',
             type: 'neutral',
-            message: `Tu mayor gasto este mes ha sido en ${topCat}.`,
+            message: `Mayor gasto registrado en ${topCat}.`,
             metric: `$${topAmount.toLocaleString('es-CO')}`,
             icon: 'PieChart'
         });
     }
 
-    // 6. Anomaly Detection (Single large expense)
-    if (currentTotalExpense > 0) {
-        const largeTx = currentMonthExpenses.find(t => Number(t.amount) > (currentTotalExpense * 0.4));
-        if (largeTx) {
-            insights.push({
-                id: 'anomaly-detect',
-                type: 'neutral',
-                message: `Notamos un movimiento grande: "${largeTx.description || 'Gasto'}" representa el 40%+ de tus gastos.`,
-                icon: 'AlertTriangle'
-            });
-        }
+    // 4. Activity check - if we have transactions at all, add a summary insight
+    if (transactions.length > 0) {
+        insights.push({
+            id: 'general-summary',
+            type: 'info',
+            message: `Analizando ${transactions.length} movimientos recientes en tus cuentas.`,
+            metric: 'Actividad',
+            icon: 'Activity'
+        });
     }
 
     if (insights.length === 0) {
         insights.push({
             id: 'welcome',
             type: 'info',
-            message: 'Registra más movimientos para obtener análisis detallados.',
+            message: 'Registra tus primeros movimientos para ver análisis detallados.',
             icon: 'Sparkles'
         });
     }
