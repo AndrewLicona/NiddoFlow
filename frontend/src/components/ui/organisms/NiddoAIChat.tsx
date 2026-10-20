@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/atoms/Button';
-import { X, Bot, User, Loader2, Sparkles, MessageCircle } from 'lucide-react';
+import { X, Bot, User, Loader2, Sparkles, MessageCircle, Send } from 'lucide-react';
 
 interface Message {
     role: 'user' | 'assistant';
