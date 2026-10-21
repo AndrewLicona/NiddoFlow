@@ -14,9 +14,6 @@ services:
     restart: unless-stopped
     ports:
       - "3030:3030"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
