@@ -19,6 +19,36 @@ async function getAuthHeader() {
     }
 }
 
+/** Lee un campo del FormData que viaja como JSON (productos, cuotas...). */
+function parseJsonField<T>(value: FormDataEntryValue | null): T | null {
+    if (typeof value !== 'string' || !value.trim()) return null
+    try {
+        return JSON.parse(value) as T
+    } catch {
+        return null
+    }
+}
+
+/** Normaliza los productos detectados por el OCR al payload que espera el backend. */
+function normalizeItems(raw: unknown): TransactionItem[] {
+    if (!Array.isArray(raw)) return []
+
+    return raw
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+        .map((item) => ({
+            item_name: String(item.item_name ?? '').trim(),
+            quantity: Number(item.quantity) || 1,
+            unit_price: Number(item.unit_price) || 0,
+            total_price: Number(item.total_price) || 0,
+            category: (item.category as string | null) ?? null,
+            category_id: (item.category_id as string | null) ?? null,
+            confidence: item.confidence === undefined || item.confidence === null
+                ? null
+                : Number(item.confidence),
+        }))
+        .filter((item) => item.item_name.length > 0)
+}
+
 export async function createTransaction(formData: FormData) {
     const headers = await getAuthHeader()
     if (!headers) redirect('/login')
@@ -32,6 +62,12 @@ export async function createTransaction(formData: FormData) {
         date: formData.get('date'), // "YYYY-MM-DD"
         receipt_url: formData.get('receipt_url') || null,
         target_account_id: formData.get('targetAccountId') || null,
+        // Datos del OCR: comercio, productos, cuotas y huella de la imagen.
+        merchant: formData.get('merchant') || null,
+        source: formData.get('source') || 'manual',
+        image_hash: formData.get('image_hash') || null,
+        installments: parseJsonField<TransactionInstallments>(formData.get('installments')),
+        items: normalizeItems(parseJsonField<unknown>(formData.get('items'))),
     }
 
     // Append time to date to make it valid ISO if simple date.
@@ -77,6 +113,22 @@ export async function deleteTransaction(transactionId: string) {
     revalidatePath('/')
 }
 
+interface TransactionItem {
+    item_name: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    category: string | null;
+    category_id: string | null;
+    confidence: number | null;
+}
+
+interface TransactionInstallments {
+    current: number;
+    total: number;
+    purchase_total_amount: number;
+}
+
 interface TransactionUpdate {
     description?: string;
     amount?: number;
@@ -86,6 +138,11 @@ interface TransactionUpdate {
     date?: string;
     receipt_url?: string | null;
     target_account_id?: string | null;
+    merchant?: string | null;
+    source?: 'manual' | 'ocr' | 'import';
+    image_hash?: string | null;
+    installments?: TransactionInstallments | null;
+    items?: TransactionItem[];
 }
 
 export async function updateTransaction(transactionId: string, data: TransactionUpdate) {
@@ -119,7 +176,9 @@ export async function createBulkTransactions(transactions: TransactionUpdate[]) 
     const processed = transactions.map(t => ({
         ...t,
         amount: Number(t.amount || 0),
-        date: t.date ? new Date(t.date).toISOString() : new Date().toISOString()
+        date: t.date ? new Date(t.date).toISOString() : new Date().toISOString(),
+        // Los productos del OCR viajan con el mismo formato que en la carga simple.
+        items: t.items ? normalizeItems(t.items) : [],
     }))
 
     const res = await fetch(`${API_URL}/transactions/bulk`, {

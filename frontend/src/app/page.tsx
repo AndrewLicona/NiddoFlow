@@ -8,8 +8,6 @@ import { accountsApi } from "@/lib/api/accounts.api";
 import { transactionsApi } from "@/lib/api/transactions.api";
 import { budgetsApi } from "@/lib/api/budgets.api";
 import { debtsApi } from "@/lib/api/debts.api";
-import { Suspense } from "react";
-import { DashboardSkeleton } from "@/components/ui/molecules/SkeletonLoaders";
 
 export default async function DashboardPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

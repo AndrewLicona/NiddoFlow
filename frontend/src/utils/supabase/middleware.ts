@@ -19,11 +19,11 @@ export async function updateSession(request: NextRequest) {
                     // so Supabase session cookies persist correctly across requests.
                     // Previously only `name` and `value` were forwarded, which caused
                     // sessions to expire rapidly because the `maxAge` option was dropped.
-                    cookiesToSet.forEach(({ name, value, options }) => {
+                    cookiesToSet.forEach(({ name, value }) => {
                         request.cookies.set(name, value)
-                        // Re-apply the options on the request cookies as well
-                        // (Next.js does not expose `set` with options on request,
-                        // but the response side below is what actually reaches the browser)
+                        // Next.js no expone `set` con opciones en `request.cookies`;
+                        // las opciones se aplican abajo, sobre la respuesta, que
+                        // es lo que realmente llega al navegador.
                     })
                     supabaseResponse = NextResponse.next({
                         request,

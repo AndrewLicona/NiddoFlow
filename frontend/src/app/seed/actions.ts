@@ -2,16 +2,33 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getWeekNumber, getIsoYear } from '@/utils/date'
 
-function getWeekNumber(date: Date): number {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
+/**
+ * Siembra datos de prueba.
+ *
+ * IMPORTANTE: esta funcion **borra** los movimientos, presupuestos, deudas y
+ * cuentas de la familia antes de crear los datos de ejemplo. Por eso exige
+ * dos cosas:
+ *
+ *  1. La variable de entorno `ALLOW_SEED_DATA=true` (en el servidor).
+ *     Sin ella, la funcion no hace nada.
+ *  2. El argumento `confirm` con el texto `BORRAR_Y_SEMBRAR`. Sin ese texto
+ *     exacto, tampoco hace nada.
+ *
+ * De este modo no se puede borrar informacion real por accidente.
+ */
+export async function seedTestData(confirm?: string) {
+    if (process.env.ALLOW_SEED_DATA !== 'true') {
+        console.warn('seedTestData omitido: falta ALLOW_SEED_DATA=true en el entorno.')
+        return
+    }
 
-export async function seedTestData() {
+    if (confirm !== 'BORRAR_Y_SEMBRAR') {
+        console.warn('seedTestData omitido: falta la confirmacion "BORRAR_Y_SEMBRAR".')
+        return
+    }
+
     const supabase = await createClient()
 
     // 1. Get User and Family ID
@@ -85,13 +102,15 @@ export async function seedTestData() {
         // Create Weekly Budgets for the CURRENT MONTH if we are in it
         if (i === 0) {
             const currentWeek = getWeekNumber(today)
+            // Año ISO: puede diferir del año calendario en enero.
+            const currentIsoYear = getIsoYear(today)
             const weeklyBudgets = expenseCats.slice(3, 5).map(cat => ({
                 family_id: familyId,
                 category_id: cat.id,
                 amount: Math.floor(Math.random() * (150000 - 50000) + 50000),
                 period: 'weekly',
                 week_number: currentWeek,
-                year: y
+                year: currentIsoYear
             }))
             await supabase.from('budgets').insert(weeklyBudgets)
         }

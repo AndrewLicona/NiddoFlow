@@ -15,6 +15,8 @@ export function useTransactions(params: { scope?: string; limit?: number; start_
             queryClient.invalidateQueries({ queryKey: ["transactions"] });
             queryClient.invalidateQueries({ queryKey: ["accounts"] });
             queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+            queryClient.invalidateQueries({ queryKey: ["budgets"] });
+            queryClient.invalidateQueries({ queryKey: ["insights"] });
         },
     });
 
@@ -24,6 +26,8 @@ export function useTransactions(params: { scope?: string; limit?: number; start_
             queryClient.invalidateQueries({ queryKey: ["transactions"] });
             queryClient.invalidateQueries({ queryKey: ["accounts"] });
             queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+            queryClient.invalidateQueries({ queryKey: ["budgets"] });
+            queryClient.invalidateQueries({ queryKey: ["insights"] });
         },
     });
 
@@ -33,7 +37,14 @@ export function useTransactions(params: { scope?: string; limit?: number; start_
             queryClient.invalidateQueries({ queryKey: ["transactions"] });
             queryClient.invalidateQueries({ queryKey: ["accounts"] });
             queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+            queryClient.invalidateQueries({ queryKey: ["budgets"] });
+            queryClient.invalidateQueries({ queryKey: ["insights"] });
         },
+    });
+
+    const exportTransactions = useMutation({
+        mutationFn: (params: { scope?: string; start_date?: string; end_date?: string }) =>
+            transactionsApi.exportTransactions(params),
     });
 
     return {
@@ -43,5 +54,6 @@ export function useTransactions(params: { scope?: string; limit?: number; start_
         createTransaction,
         updateTransaction,
         deleteTransaction,
+        exportTransactions,
     };
 }

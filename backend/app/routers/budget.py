@@ -14,7 +14,7 @@ def get_budgets_service():
 
 @router.get("/", response_model=List[BudgetResponse])
 async def get_budgets(
-    scope: str = "family", 
+    scope: str = "all",
     user = Depends(get_current_user),
     service: BudgetsService = Depends(get_budgets_service)
 ):

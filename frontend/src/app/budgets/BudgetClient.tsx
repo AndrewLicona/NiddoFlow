@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/atoms/Button';
 import { Card } from '@/components/ui/molecules/Card';
 import { InputField } from '@/components/ui/molecules/InputField';
 import { Plus, Target, Trash2, AlertCircle, CheckCircle2, Calendar, Save } from 'lucide-react';
-import { getWeekNumber, getStartOfWeek } from '@/utils/date';
+import { getWeekNumber, getIsoYear, getStartOfWeek } from '@/utils/date';
 import { useBudgets } from '@/hooks/useBudgets';
 import { useCategories } from '@/hooks/useCategories';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -48,7 +48,8 @@ export default function BudgetClient({ userId }: { userId: string }) {
             ...prev,
             month: now.getMonth() + 1,
             week_number: getWeekNumber(now),
-            year: now.getFullYear()
+            // Año ISO: puede diferir del calendario en los primeros días de enero.
+            year: getIsoYear(now)
         }));
     }, []);
 
@@ -148,7 +149,13 @@ export default function BudgetClient({ userId }: { userId: string }) {
                 });
             }
 
-            const spent = relevantTxs.reduce((acc: number, t: any) => acc + t.amount, 0);
+            const spentFromServer = budget.spent !== undefined && budget.spent !== null
+                ? Number(budget.spent)
+                : null;
+
+            const spent = spentFromServer !== null
+                ? spentFromServer
+                : relevantTxs.reduce((acc: number, t: any) => acc + t.amount, 0);
             const percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
 
             return {
@@ -185,7 +192,7 @@ export default function BudgetClient({ userId }: { userId: string }) {
                 period: 'monthly',
                 month: new Date().getMonth() + 1,
                 week_number: getWeekNumber(new Date()),
-                year: new Date().getFullYear(),
+                year: getIsoYear(new Date()),
                 start_date: '',
                 end_date: '',
                 scope: 'family'

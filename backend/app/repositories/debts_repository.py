@@ -28,5 +28,7 @@ class DebtsRepository(BaseRepository):
     def get_account_balance(self, account_id: str):
         return self.db.table("accounts").select("balance").eq("id", account_id).execute()
 
-    def update_account_balance(self, account_id: str, new_balance: float):
-        return self.db.table("accounts").update({"balance": new_balance}).eq("id", account_id).execute()
+    # Nota: el saldo de la cuenta NO se actualiza desde el codigo. Lo mantiene
+    # el trigger de la base de datos `sync_account_balances_on_transaction_change`.
+    # Por eso aqui no hay ningun `update` del saldo: un `update` por `id` sin
+    # acotar por familia permitiria tocar la cuenta de otra familia.

@@ -19,16 +19,27 @@ interface Transaction {
     type: 'income' | 'expense' | 'transfer';
 }
 
+/** Desglose por categoría tal como lo devuelve el servidor (`/insights`). */
+export type CategoryDatum = {
+    name: string;
+    value: number;
+};
+
 interface Props {
-    transactions: Transaction[];
+    /** Datos del servidor. Si no se pasan, se calculan desde `transactions`. */
+    data?: CategoryDatum[];
+    transactions?: Transaction[];
 }
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6', '#06B6D4', '#EC4899', '#3B82F6'];
 
-const ExpenseCategoryDonutChart: React.FC<Props> = ({ transactions }) => {
-    const data = useMemo(() => {
+const ExpenseCategoryDonutChart: React.FC<Props> = ({ data, transactions }) => {
+    const chartData = useMemo<CategoryDatum[]>(() => {
+        if (data) return [...data].sort((a, b) => b.value - a.value);
+
+        // Respaldo para las pantallas que aún no consumen `/insights`.
         const map: Record<string, number> = {};
-        transactions
+        (transactions ?? [])
             .filter(t => t.type === 'expense')
             .forEach(t => {
                 const catName = t.category_name || t.categories?.name || 'Otros';
@@ -38,9 +49,9 @@ const ExpenseCategoryDonutChart: React.FC<Props> = ({ transactions }) => {
         return Object.entries(map)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
-    }, [transactions]);
+    }, [data, transactions]);
 
-    if (data.length === 0) {
+    if (chartData.length === 0) {
         return (
             <div className="flex h-64 items-center justify-center text-foreground/30 font-medium">
                 No hay gastos para mostrar.
@@ -53,7 +64,7 @@ const ExpenseCategoryDonutChart: React.FC<Props> = ({ transactions }) => {
             <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                     <Pie
-                        data={data}
+                        data={chartData}
                         cx="50%"
                         cy="50%"
                         innerRadius={45}
@@ -61,7 +72,7 @@ const ExpenseCategoryDonutChart: React.FC<Props> = ({ transactions }) => {
                         paddingAngle={5}
                         dataKey="value"
                     >
-                        {data.map((_, index) => (
+                        {chartData.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
                         ))}
                     </Pie>

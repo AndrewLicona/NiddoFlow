@@ -1,23 +1,72 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
-import { Button } from '@/components/ui/atoms/Button';
-import { X, Bot, User, Loader2, Sparkles, MessageCircle, Send } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useChatHistory, useSendChatMessage } from '@/hooks/useChat';
+import { X, Bot, User, Loader2, Sparkles, Send, Check, Trash2 } from 'lucide-react';
+import { useTransactions } from '@/hooks/useTransactions';
+import { formatCurrency } from '@/utils/format';
+
+interface Proposal {
+    type: 'transaction';
+    label: string;
+    payload: {
+        description: string;
+        amount: number;
+        type: 'income' | 'expense' | 'transfer';
+        category_id?: string | null;
+        account_id: string;
+        date?: string;
+    };
+}
 
 interface Message {
     role: 'user' | 'assistant';
     content: string;
+    proposals?: Proposal[];
+    proposalState?: Record<number, 'pending' | 'confirmed' | 'dismissed'>;
 }
+
+const GREETING: Message = {
+    role: 'assistant',
+    content: '¡Hola! Soy NiddoAI, tu asistente financiero inteligente. Pregúntame sobre tus saldos, presupuestos o gastos de la semana o el mes.',
+};
 
 export const NiddoAIChat = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: '¡Hola! Soy NiddoAI, tu asistente financiero inteligente. Pregúntame sobre tus saldos, presupuestos o gastos de la semana o el mes.' }
-    ]);
+    // Mensajes de la sesión en curso. El historial guardado en el servidor se
+    // combina con ellos al renderizar, sin copiarlo a un estado aparte.
+    const [localMessages, setLocalMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const { createTransaction } = useTransactions();
+
+    // El historial se pide al backend solo cuando el panel está abierto y el
+    // usuario todavía no ha escrito en esta sesión.
+    const { data: historyData, isLoading: loadingHistory } = useChatHistory(isOpen && localMessages.length === 0);
+    const sendMessage = useSendChatMessage();
+    const loading = sendMessage.isPending;
+
+    /**
+     * Historial guardado en el servidor, normalizado al formato de la UI.
+     * Se deriva durante el render en vez de copiarse a un estado: así no hace
+     * falta un efecto para sincronizar dos fuentes de verdad.
+     */
+    const historyMessages = useMemo<Message[]>(
+        () =>
+            (historyData ?? [])
+                .filter((h) => h.role === 'user' || h.role === 'assistant')
+                .map((h) => ({ role: h.role, content: h.content || '' })),
+        [historyData]
+    );
+
+    /**
+     * Lo que se muestra: historial del servidor + mensajes de esta sesión.
+     * Si no hay historial todavía, se muestra el saludo inicial.
+     */
+    const messages = useMemo<Message[]>(() => {
+        if (historyMessages.length > 0) return [...historyMessages, ...localMessages];
+        return [GREETING, ...localMessages];
+    }, [historyMessages, localMessages]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -29,49 +78,94 @@ export const NiddoAIChat = () => {
         }
     }, [isOpen, messages]);
 
-    const handleSend = async (e: React.FormEvent) => {
+    const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
 
         const userMessage = input.trim();
         setInput('');
-        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-        setLoading(true);
+        setLocalMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+        const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
+
+        sendMessage.mutate(
+            { message: userMessage, history: historyPayload },
+            {
+                onSuccess: (data) => {
+                    const proposals: Proposal[] = Array.isArray(data?.proposals) ? data.proposals : [];
+                    setLocalMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: data?.reply ?? '',
+                        proposals: proposals.length ? proposals : undefined,
+                        proposalState: proposals.length
+                            ? Object.fromEntries(proposals.map((_, i) => [i, 'pending' as const]))
+                            : undefined,
+                    }]);
+                },
+                onError: (error: any) => {
+                    console.error('Chat error:', error);
+                    const detail = String(error?.message || '');
+                    const sinSesion = /401|credential|token|unauth/i.test(detail);
+                    setLocalMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: sinSesion
+                            ? 'Por favor inicia sesión para usar el chat.'
+                            : 'Lo siento, ocurrió un error al comunicarme con NiddoAI.'
+                    }]);
+                },
+            }
+        );
+    };
+
+    /**
+     * Confirma una propuesta de la IA. La IA NUNCA escribe directamente:
+     * propone, y el usuario confirma aquí.
+     *
+     * `messageIndex` es el índice dentro de la lista mostrada (historial +
+     * sesión). Para actualizar el estado local se descuenta el historial.
+     */
+    const confirmProposal = async (messageIndex: number, proposalIndex: number, proposal: Proposal) => {
+        const localIndex = messageIndex - historyMessages.length;
+
+        setLocalMessages(prev => prev.map((m, i) => {
+            if (i !== localIndex || !m.proposalState) return m;
+            return {
+                ...m,
+                proposalState: { ...m.proposalState, [proposalIndex]: 'confirmed' as const },
+            };
+        }));
 
         try {
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                setMessages(prev => [...prev, { role: 'assistant', content: 'Por favor inicia sesión para usar el chat.' }]);
-                setLoading(false);
-                return;
-            }
-
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-            const res = await fetch(`${baseUrl}/api/chat/message`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
-                body: JSON.stringify({
-                    message: userMessage,
-                    history: messages.map(m => ({ role: m.role, content: m.content }))
-                })
+            await createTransaction.mutateAsync({
+                description: proposal.payload.description,
+                amount: proposal.payload.amount,
+                type: proposal.payload.type,
+                category_id: proposal.payload.category_id || null,
+                account_id: proposal.payload.account_id,
+                date: proposal.payload.date || new Date().toISOString(),
+                source: 'manual',
             });
-
-            if (!res.ok) {
-                throw new Error('Error en la respuesta del servidor');
-            }
-
-            const data = await res.json();
-            setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
         } catch (error) {
-            console.error('Chat error:', error);
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Lo siento, ocurrió un error al comunicarme con NiddoAI.' }]);
-        } finally {
-            setLoading(false);
+            console.error('No se pudo registrar la propuesta:', error);
+            setLocalMessages(prev => prev.map((m, i) => {
+                if (i !== localIndex || !m.proposalState) return m;
+                return {
+                    ...m,
+                    proposalState: { ...m.proposalState, [proposalIndex]: 'pending' as const },
+                };
+            }));
         }
+    };
+
+    const dismissProposal = (messageIndex: number, proposalIndex: number) => {
+        const localIndex = messageIndex - historyMessages.length;
+        setLocalMessages(prev => prev.map((m, i) => {
+            if (i !== localIndex || !m.proposalState) return m;
+            return {
+                ...m,
+                proposalState: { ...m.proposalState, [proposalIndex]: 'dismissed' as const },
+            };
+        }));
     };
 
     // Helper to format bot responses nicely (stripping raw markdown asterisks and handling line breaks)
@@ -132,7 +226,7 @@ export const NiddoAIChat = () => {
                                     <h3 className="font-black text-base text-foreground tracking-tight">NiddoAI Asistente</h3>
                                     <p className="text-[11px] text-emerald-500 font-bold flex items-center gap-1.5">
                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        Saldos y movimientos en tiempo real
+                                        {loadingHistory ? 'Recuperando tu historial…' : 'Saldos y movimientos en tiempo real'}
                                     </p>
                                 </div>
                             </div>
@@ -162,6 +256,60 @@ export const NiddoAIChat = () => {
                                             : 'bg-card border border-foreground/[0.08] text-foreground rounded-tl-none shadow-sm'
                                     }`}>
                                         {m.role === 'assistant' ? renderFormattedContent(m.content) : m.content}
+
+                                        {/* Propuestas de la IA: nunca escribe sola, el usuario confirma */}
+                                        {m.proposals && m.proposals.length > 0 && (
+                                            <div className="mt-3 space-y-2 border-t border-foreground/[0.06] pt-3">
+                                                {m.proposals.map((proposal, pIdx) => {
+                                                    const state = m.proposalState?.[pIdx] ?? 'pending';
+                                                    return (
+                                                        <div
+                                                            key={pIdx}
+                                                            className={`rounded-xl border p-3 text-xs ${
+                                                                state === 'confirmed'
+                                                                    ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-500/30'
+                                                                    : state === 'dismissed'
+                                                                        ? 'border-foreground/10 opacity-50'
+                                                                        : 'border-primary/30 bg-primary/[0.06]'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-start gap-2 mb-2">
+                                                                <Sparkles size={13} className="mt-0.5 shrink-0 text-primary" />
+                                                                <div className="min-w-0">
+                                                                    <div className="font-bold leading-snug">{proposal.label}</div>
+                                                                    <div className="opacity-60 text-[10px] mt-0.5">
+                                                                        {proposal.payload.description} · {formatCurrency(proposal.payload.amount)}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {state === 'pending' ? (
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => confirmProposal(idx, pIdx, proposal)}
+                                                                        className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 font-bold text-[10px] transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Check size={12} /> Confirmar
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => dismissProposal(idx, pIdx)}
+                                                                        className="flex items-center gap-1 rounded-lg bg-foreground/[0.06] hover:bg-foreground/10 px-2.5 py-1.5 font-bold text-[10px] transition-colors cursor-pointer"
+                                                                    >
+                                                                        <Trash2 size={12} /> Descartar
+                                                                    </button>
+                                                                </div>
+                                                            ) : state === 'confirmed' ? (
+                                        <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                                    <Check size={12} /> Registrado
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-[10px] font-bold opacity-50">Descartado</div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

@@ -21,3 +21,8 @@ class BudgetResponse(BudgetBase):
     id: UUID
     family_id: UUID
     created_at: datetime
+    # Calculados en el servidor: son la fuente de verdad del scoping.
+    spent: float = 0.0
+    percent: float = 0.0
+    remaining: float = 0.0
+    status: str = "ok"

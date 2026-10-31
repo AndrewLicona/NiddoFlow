@@ -5,6 +5,10 @@ from datetime import datetime
 import io
 from app.dependencies import get_current_user
 from app.models.transaction import TransactionCreate, TransactionResponse, TransactionUpdate
+from app.models.transaction_item import (
+    TransactionItemsCategoryRequest,
+    TransactionItemCategoryResponse,
+)
 from app.repositories.transactions_repository import TransactionsRepository
 from app.services.transactions_service import TransactionsService
 
@@ -70,6 +74,28 @@ async def update_transaction(
         return await service.update_transaction(user.id, transaction_id, updates.model_dump(exclude_unset=True))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.patch("/{transaction_id}/items", response_model=List[TransactionItemCategoryResponse])
+@router.patch("/{transaction_id}/items/", response_model=List[TransactionItemCategoryResponse], include_in_schema=False)
+async def update_transaction_items_categories(
+    transaction_id: str,
+    payload: TransactionItemsCategoryRequest,
+    user = Depends(get_current_user),
+    service: TransactionsService = Depends(get_transactions_service)
+):
+    """Corrige la categoría de los productos de una factura ya registrada.
+
+    Es el paso que faltaba para que el OCR "aprenda": el modelo propone y el
+    usuario ajusta. Cada corrección se puede convertir en una regla
+    (`/categories/rules/`) para que las próximas facturas salgan bien solas.
+    """
+    try:
+        return await service.update_items_categories(
+            user.id, transaction_id, [i.model_dump() for i in payload.items]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.delete("/{transaction_id}")
 @router.delete("/{transaction_id}/", include_in_schema=False)

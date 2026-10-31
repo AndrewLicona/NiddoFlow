@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from typing import List, Optional
 from pydantic import BaseModel
 from app.dependencies import get_current_user
@@ -11,7 +11,14 @@ class ChatMessageRequest(BaseModel):
     history: Optional[List[dict]] = []
 
 class ChatMessageResponse(BaseModel):
+    """Respuesta del chat.
+
+    `proposals` siempre está presente (aunque sea una lista vacía) porque el
+    frontend renderiza los botones "Confirmar"/"Descartar" de cada propuesta.
+    La IA NUNCA escribe en `transactions`: solo propone.
+    """
     reply: str
+    proposals: List[dict] = []
 
 def get_chat_service():
     return ChatService()
@@ -23,10 +30,23 @@ async def send_chat_message(
     service: ChatService = Depends(get_chat_service)
 ):
     try:
-        reply = await service.chat_with_assistant(str(user.id), payload.message, payload.history)
-        return {"reply": reply}
+        result = await service.chat_with_assistant(
+            str(user.id), payload.message, payload.history
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Nunca se devuelve un 500 por un fallo puntual del asistente: se
+        # responde con un mensaje amable y sin propuestas.
+        return {
+            "reply": (
+                "No pude procesar tu consulta en este momento. "
+                "Inténtalo de nuevo en un momento."
+            ),
+            "proposals": [],
+        }
+    return {
+        "reply": result.get("reply", ""),
+        "proposals": result.get("proposals", []) or [],
+    }
 
 @router.get("/history", response_model=List[dict])
 async def get_history(
@@ -36,4 +56,4 @@ async def get_history(
     try:
         return await service.get_chat_history(str(user.id))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return []

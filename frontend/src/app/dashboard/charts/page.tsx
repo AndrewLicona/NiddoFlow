@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import React, { useState, useRef, useMemo } from 'react';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useFamily } from '@/hooks/useFamily';
 import BalanceLineChart from './BalanceLineChart';
 import IncomeExpenseBarChart from './IncomeExpenseBarChart';
 import CategoryBarChart from './CategoryBarChart';
@@ -31,6 +33,7 @@ interface Transaction {
     user_id?: string;
     user_name?: string;
     category?: string;
+    category_name?: string;
     categories?: { name: string } | null;
     date: string;
     type: 'income' | 'expense' | 'transfer';
@@ -38,9 +41,31 @@ interface Transaction {
 }
 
 const ChartsPage: React.FC = () => {
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [profiles, setProfiles] = useState<Profile[]>([]);
+    // Todo el fetching pasa por React Query (contrato §8: los componentes no
+    // consultan datos por su cuenta).
+    const { accounts: fetchedAccounts } = useAccounts('family');
+    const { transactions: fetchedTransactions } = useTransactions({ scope: 'family' });
+    const { members } = useFamily();
+
+    const accounts = useMemo<Account[]>(
+        () => (fetchedAccounts || []) as unknown as Account[],
+        [fetchedAccounts]
+    );
+
+    const transactions = useMemo<Transaction[]>(
+        () => (fetchedTransactions || []) as unknown as Transaction[],
+        [fetchedTransactions]
+    );
+
+    const profiles = useMemo<Profile[]>(
+        () =>
+            (members || []).map((member: any) => ({
+                id: member.id,
+                full_name: member.full_name ?? null,
+            })),
+        [members]
+    );
+
     const [visibleCharts, setVisibleCharts] = useState<string[]>([
         'balanceLine',
         'incomeExpenseBar',
@@ -50,24 +75,6 @@ const ChartsPage: React.FC = () => {
     ]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const supabase = createClient();
-            const { data: accountsData } = await supabase.from('accounts').select('*');
-            const { data: transactionsData } = await supabase
-                .from('transactions')
-                .select('*, categories(name)');
-            const { data: profilesData } = await supabase
-                .from('profiles')
-                .select('id, full_name');
-
-            setAccounts((accountsData || []) as Account[]);
-            setTransactions((transactionsData || []) as Transaction[]);
-            setProfiles((profilesData || []) as Profile[]);
-        };
-        fetchData();
-    }, []);
 
     const removeChart = (id: string) => {
         setVisibleCharts((prev) => prev.filter((c) => c !== id));

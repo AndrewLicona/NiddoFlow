@@ -22,16 +22,27 @@ interface Transaction {
     categories?: { name: string } | null;
 }
 
+/** Ranking por categoría tal como lo devuelve el servidor (`/insights`). */
+export type CategoryBarDatum = {
+    category: string;
+    amount: number;
+};
+
 interface Props {
-    transactions: Transaction[];
+    /** Datos del servidor. Si no se pasan, se calculan desde `transactions`. */
+    data?: CategoryBarDatum[];
+    transactions?: Transaction[];
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
-const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
-    const data = useMemo(() => {
+const CategoryBarChart: React.FC<Props> = ({ data, transactions }) => {
+    const chartData = useMemo<CategoryBarDatum[]>(() => {
+        if (data) return [...data].sort((a, b) => b.amount - a.amount);
+
+        // Respaldo para las pantallas que aún no consumen `/insights`.
         const map: Record<string, number> = {};
-        transactions
+        (transactions ?? [])
             .filter(t => t.type === 'expense')
             .forEach(t => {
                 const catName = t.category_name || t.categories?.name || 'Varios';
@@ -40,8 +51,8 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
 
         return Object.entries(map)
             .map(([category, amount]) => ({ category, amount }))
-            .sort((a, b) => b.amount - a.amount); // Sort by amount descending
-    }, [transactions]);
+            .sort((a, b) => b.amount - a.amount);
+    }, [data, transactions]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-CO', {
@@ -52,7 +63,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
         }).format(value);
     };
 
-    if (data.length === 0) {
+    if (chartData.length === 0) {
         return (
             <div className="flex h-64 items-center justify-center text-foreground/30">
                 No hay datos de gastos para mostrar.
@@ -64,7 +75,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
         <div className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                    data={data}
+                    data={chartData}
                     layout="vertical"
                     margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                 >
@@ -90,7 +101,7 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
                         itemStyle={{ color: 'var(--foreground)' }}
                     />
                     <Bar dataKey="amount" radius={[0, 4, 4, 0]} barSize={20}>
-                        {data.map((entry, index) => (
+                        {chartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                     </Bar>
@@ -98,6 +109,6 @@ const CategoryBarChart: React.FC<Props> = ({ transactions }) => {
             </ResponsiveContainer>
         </div>
     );
-}
+};
 
 export default CategoryBarChart;

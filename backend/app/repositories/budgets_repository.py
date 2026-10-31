@@ -23,3 +23,18 @@ class BudgetsRepository(BaseRepository):
 
     def delete_budget(self, budget_id: str, family_id: str):
         return self.db.table("budgets").delete().eq("id", budget_id).eq("family_id", family_id).execute()
+
+    def get_expenses_by_family(self, family_id: str, start_date: str = None, end_date: str = None):
+        """Gastos de la familia, acotados opcionalmente por rango de fechas.
+
+        Se usan para calcular lo gastado en cada presupuesto sin duplicar la
+        lógica de filtrado en el cliente.
+        """
+        query = self.db.table("transactions") \
+            .select("id, amount, type, date, category_id, user_id, family_id") \
+            .eq("family_id", family_id).eq("type", "expense")
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
+        return query.execute()

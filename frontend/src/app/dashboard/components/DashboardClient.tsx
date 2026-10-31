@@ -4,9 +4,8 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useBudgets } from "@/hooks/useBudgets";
-import { useDebts } from "@/hooks/useDebts";
+import { useInsights } from "@/hooks/useInsights";
 import { formatCurrency } from "@/utils/format";
-import { getWeekNumber } from "@/utils/date";
 import { Typography } from "@/components/ui/atoms/Typography";
 import { Button } from "@/components/ui/atoms/Button";
 import { Card } from "@/components/ui/molecules/Card";
@@ -25,6 +24,8 @@ import {
 import Link from "next/link";
 import ChartCarousel from "./ChartCarousel";
 import SmartFeed from "./SmartFeed";
+import IntelligenceCenter from "./IntelligenceCenter";
+import { budgetPeriodLabel, isBudgetActiveNow } from "@/app/dashboard/lib/budgetPeriod";
 import OnboardingTour from "@/components/ui/organisms/OnboardingTour";
 import React, { useMemo } from "react";
 import { DashboardSkeleton } from "@/components/ui/molecules/SkeletonLoaders";
@@ -35,13 +36,11 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ user, profile }: DashboardClientProps) {
-    const { stats, preparedData: dashboardData, isLoading: statsLoading } = useDashboard();
+    const { preparedData: dashboardData, isLoading: statsLoading } = useDashboard();
     const { accounts, isLoading: accountsLoading } = useAccounts();
-    const { transactions: recentTransactions, isLoading: txLoading } = useTransactions({ limit: 5 });
-    const { budgets, isLoading: budgetsLoading } = useBudgets();
-    const { isLoading: debtsLoading } = useDebts();
-
-    const isLoading = statsLoading || accountsLoading || txLoading || budgetsLoading || debtsLoading;
+    const { transactions: recentTransactions } = useTransactions({ limit: 5 });
+    const { budgets } = useBudgets();
+    const { totals: insightTotals } = useInsights();
 
     const [today, setToday] = React.useState<Date | null>(null);
 
@@ -49,31 +48,33 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
         setToday(new Date());
     }, []);
 
-    const currentMonth = today ? today.getMonth() + 1 : 0;
-    const currentWeek = today ? getWeekNumber(today) : 0;
+    /**
+     * Totales del mes: los manda el servidor (`/insights`), que es la misma
+     * fuente que usan presupuestos, gráficos y el resto de la app.
+     * Mientras llegan (o si el endpoint falla) se usa el resumen del dashboard.
+     */
+    const monthlyIncome = insightTotals?.income ?? dashboardData?.monthlyIncome ?? 0;
+    const monthlyExpense = insightTotals?.expense ?? dashboardData?.monthlyExpense ?? 0;
 
     // Data processing logic moved here
     const processedBudgets = useMemo(() => {
-        if (!today || !budgets || !stats) return [];
+        if (!today || !budgets) return [];
 
-        return budgets.filter((b: any) => {
-            if (b.start_date && b.end_date) {
-                const start = new Date(b.start_date);
-                const end = new Date(b.end_date);
-                end.setHours(23, 59, 59, 999);
-                return today >= start && today <= end;
-            }
-            if (b.period === "monthly") return b.month === currentMonth;
-            if (b.period === "weekly") return b.week_number === currentWeek;
-            return false;
-        }).map((b: any) => {
-            // This 'spent' calculation should ideally be handled by the backend or a dedicated budget service
-            // For now, keeping it consistent with original logic but using cached data
-            // Note: original logic used monthlyTxs which we don't fetch separately here yet
-            // In a real scenario, we'd have an endpoint returning budget progress.
-            return { ...b, spent: b.spent || 0, percent: b.percent || 0 };
-        });
-    }, [budgets, currentMonth, currentWeek, stats, today]);
+        // `spent`, `percent` y `status` los calcula el servidor ya acotados al
+        // período de cada presupuesto (fuente de verdad: `budget_period.py`).
+        // Aquí solo se filtra cuáles presupuestos son los del período actual.
+        return budgets
+            .filter((b: any) => isBudgetActiveNow(b, today))
+            .map((b: any) => {
+                const spent = Number(b.spent ?? 0);
+                const percent = Number(b.percent ?? 0);
+                // El `status` lo manda el servidor; el fallback solo se usa si
+                // un backend antiguo no lo devuelve (mismos umbrales del contrato).
+                const status =
+                    b.status ?? (percent >= 100 ? "critical" : percent >= 80 ? "warning" : "ok");
+                return { ...b, spent, percent, status };
+            });
+    }, [budgets, today]);
 
 
     const displayName = user.user_metadata?.full_name || profile.full_name || user.email;
@@ -128,7 +129,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                     </div>
                     <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[9px] opacity-70">Ingresos (Mes)</Typography>
                     <Typography variant="h2" className="mt-1 tracking-tighter text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(dashboardData?.monthlyIncome || 0)}
+                        {formatCurrency(monthlyIncome)}
                     </Typography>
                 </Card>
                 <Card variant="elevated" className="relative overflow-hidden group border-rose-500/10">
@@ -137,7 +138,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                     </div>
                     <Typography variant="small" className="text-foreground font-black uppercase tracking-widest text-[9px] opacity-70">Gastos (Mes)</Typography>
                     <Typography variant="h2" className="mt-1 tracking-tighter text-rose-600 dark:text-rose-400">
-                        {formatCurrency(dashboardData?.monthlyExpense || 0)}
+                        {formatCurrency(monthlyExpense)}
                     </Typography>
                 </Card>
             </div>
@@ -145,6 +146,8 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
                 <div className="lg:col-span-8 space-y-6 md:space-y-10">
                     <SmartFeed currentDate={today} />
+
+                    <IntelligenceCenter />
 
                     <ChartCarousel />
 
@@ -167,7 +170,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                                                 <Typography variant="body" className="font-bold text-foreground">{b.categories?.name}</Typography>
                                                 <div className="flex items-center space-x-2">
                                                     <Typography variant="small" className="text-[10px] opacity-50 uppercase font-black">
-                                                        {b.period === "weekly" ? "Semanal" : b.period === "biweekly" ? "Quincenal" : b.period === "custom" ? "Manual" : "Mensual"}
+                                                        {budgetPeriodLabel(b)}
                                                     </Typography>
                                                 </div>
                                             </div>
@@ -177,11 +180,11 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                                         </div>
                                         <div className="h-2 w-full bg-foreground/[0.03] rounded-full overflow-hidden">
                                             <div
-                                                className={`h-full transition-all duration-1000 ${b.percent >= 100 ? "bg-rose-500" :
-                                                    b.percent >= 80 ? "bg-orange-500" :
+                                                className={`h-full transition-all duration-1000 ${b.status === "critical" ? "bg-rose-500" :
+                                                    b.status === "warning" ? "bg-orange-500" :
                                                         "bg-indigo-500"
                                                     }`}
-                                                style={{ width: `${b.percent}%` }}
+                                                style={{ width: `${Math.min(100, b.percent)}%` }}
                                             />
                                         </div>
                                     </div>

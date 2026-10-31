@@ -8,16 +8,19 @@ generator client {
 }
 
 model Family {
-  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name         String
-  invite_code  String?       @unique
-  created_at   DateTime      @default(now()) @db.Timestamptz(6)
-  accounts     Account[]
-  profiles     Profile[]
-  categories   Category[]
-  transactions Transaction[]
-  budgets      Budget[]
-  debts        Debt[]
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  invite_code     String?          @unique
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  accounts        Account[]
+  profiles        Profile[]
+  categories      Category[]
+  transactions    Transaction[]
+  budgets         Budget[]
+  debts           Debt[]
+  shopping_items  ShoppingItem[]
+  savings_goals   SavingsGoal[]
+  recurring_bills RecurringBill[]
 
   @@map("families")
 }
@@ -37,47 +40,70 @@ model Account {
 }
 
 model Profile {
-  id         String   @id @db.Uuid
-  email      String?
-  full_name  String?
-  family_id  String?  @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  family     Family?  @relation(fields: [family_id], references: [id], onDelete: SetNull)
+  id              String           @id @db.Uuid
+  email           String?
+  full_name       String?
+  family_id       String?          @db.Uuid
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  family          Family?          @relation(fields: [family_id], references: [id], onDelete: SetNull)
+  budgets         Budget[]
+  shopping_items  ShoppingItem[]
+  savings_goals   SavingsGoal[]
+  recurring_bills RecurringBill[]
 
   @@map("profiles")
 }
 
 model Category {
-  id           String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name         String
-  type         String
-  icon         String?
-  is_default   Boolean?      @default(false)
-  family_id    String?       @db.Uuid
-  created_at   DateTime      @default(now()) @db.Timestamptz(6)
-  family       Family?       @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  budgets      Budget[]
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  type            String
+  icon            String?
+  is_default      Boolean?         @default(false)
+  family_id       String?          @db.Uuid
+  // Jerarquía disponible pero NO se usa (decisión de diseño: plano).
+  parent_id       String?          @db.Uuid
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  family          Family?          @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  parent          Category?        @relation("CategoryHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children        Category[]       @relation("CategoryHierarchy")
+  transactions    Transaction[]
+  budgets         Budget[]
+  items           TransactionItem[]
+  shopping_items  ShoppingItem[]
+  savings_goals   SavingsGoal[]
+  recurring_bills RecurringBill[]
 
   @@map("categories")
 }
 
 model Transaction {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  description String
-  amount      Float
-  type        String
-  date        DateTime @default(now()) @db.Timestamptz(6)
-  category_id String?  @db.Uuid
-  account_id  String   @db.Uuid
-  user_id     String?  @db.Uuid
-  family_id   String   @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  id                   String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  description          String
+  amount               Float
+  type                 String
+  date                 DateTime          @default(now()) @db.Timestamptz(6)
+  category_id          String?           @db.Uuid
+  account_id           String            @db.Uuid
+  user_id              String?           @db.Uuid
+  family_id            String            @db.Uuid
+  // Comercio normalizado y cuotas (OCR / importador)
+  merchant             String?
+  installment_current  Int?
+  installment_total    Int?
+  purchase_total_amount Float?
+  image_hash           String?
+  import_hash          String?
+  source               String? // manual | ocr | import
+  receipt_url          String?
+  target_account_id    String?           @db.Uuid
+  created_at           DateTime          @default(now()) @db.Timestamptz(6)
 
-  category Category?         @relation(fields: [category_id], references: [id], onDelete: SetNull)
-  account  Account           @relation(fields: [account_id], references: [id], onDelete: Cascade)
-  family   Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
-  items    TransactionItem[]
+  category        Category?         @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  account         Account           @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  family          Family            @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  items           TransactionItem[]
+  shopping_items  ShoppingItem[]
 
   @@map("transactions")
 }
@@ -90,9 +116,15 @@ model TransactionItem {
   unit_price     Float
   total_price    Float
   category       String?
+  // Categoría real resuelta por el matcher + confianza del OCR
+  category_id    String?  @db.Uuid
+  confidence     Float?
   created_at     DateTime @default(now()) @db.Timestamptz(6)
 
   transaction Transaction @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+  // El campo escalar `category` (nombre de la categoría) ya existe en la tabla,
+  // por eso la relación se llama `category_ref`.
+  category_ref Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
 
   @@map("transaction_items")
 }
@@ -123,8 +155,12 @@ model UserCategoryRule {
 
 model Budget {
   id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  category_id String    @db.Uuid
+  // Nullable: al borrar la categoría el presupuesto se conserva sin categoría
+  // (la FK usa ON DELETE SET NULL, que exige que la columna admita NULL).
+  category_id String?   @db.Uuid
   family_id   String    @db.Uuid
+  // NULL = presupuesto familiar compartido; con valor = presupuesto personal.
+  user_id     String?   @db.Uuid
   amount      Float
   period      String    @default("monthly")
   month       Int?
@@ -134,8 +170,9 @@ model Budget {
   end_date    DateTime? @db.Date
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
 
-  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
   family   Family   @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  user     Profile? @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([family_id, category_id, period, month, week_number, year])
   @@map("budgets")
@@ -153,7 +190,70 @@ model Debt {
   due_date         DateTime? @db.Timestamptz(6)
   created_at       DateTime  @default(now()) @db.Timestamptz(6)
 
-  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  family  Family  @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
 
   @@map("debts")
+}
+
+model ShoppingItem {
+  id                     String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  family_id              String    @db.Uuid
+  name                   String
+  category_id            String?   @db.Uuid
+  quantity               Float?    @default(1)
+  estimated_price        Float?
+  priority               String    @default("normal")
+  status                 String    @default("pending")
+  purchase_transaction_id String?   @db.Uuid
+  notes                  String?
+  created_by             String?   @db.Uuid
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  purchased_at           DateTime? @db.Timestamptz(6)
+
+  family               Family       @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  category             Category?    @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  purchase_transaction Transaction? @relation(fields: [purchase_transaction_id], references: [id], onDelete: SetNull)
+  created_by_user      Profile?     @relation(fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("shopping_items")
+}
+
+model SavingsGoal {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  family_id     String    @db.Uuid
+  name          String
+  target_amount Float
+  saved_amount  Float     @default(0)
+  target_date   DateTime? @db.Date
+  category_id   String?   @db.Uuid
+  created_by    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  family         Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  category       Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  created_by_user Profile? @relation(fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("savings_goals")
+}
+
+model RecurringBill {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  family_id     String    @db.Uuid
+  name          String
+  amount        Float
+  category_id   String?   @db.Uuid
+  cadence       String    @default("monthly")
+  day_of_month  Int?
+  next_due_date DateTime? @db.Date
+  is_active     Boolean   @default(true)
+  notes         String?
+  created_by    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  family          Family    @relation(fields: [family_id], references: [id], onDelete: Cascade)
+  category        Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  created_by_user Profile?  @relation(fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@map("recurring_bills")
 }

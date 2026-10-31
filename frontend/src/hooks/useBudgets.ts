@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { budgetsApi } from "@/lib/api/budgets.api";
 
-export function useBudgets(scope: string = "family") {
+export function useBudgets(scope: string = "all") {
     const queryClient = useQueryClient();
 
     const { data, isLoading, error } = useQuery({

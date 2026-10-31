@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
-import { TrendingUp, AlertCircle, Info, Printer, Calendar, Share2 } from 'lucide-react';
+import { TrendingUp, AlertCircle, Info, Printer, Calendar, Share2, Filter, RotateCcw } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import ExpenseCategoryDonutChart from '@/app/dashboard/charts/ExpenseCategoryDonutChart';
 import UserExpensesPieChart from '@/app/dashboard/charts/UserExpensesPieChart';
@@ -19,6 +19,7 @@ interface Transaction {
     category_name?: string;
     user_id?: string;
     user_name?: string;
+    merchant?: string | null;
 }
 
 interface Props {
@@ -33,17 +34,74 @@ export default function ReportsClient({ transactions }: Props) {
     const [startDate, setStartDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]);
 
+    // Filtros adicionales
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [memberFilter, setMemberFilter] = useState('all');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+    const [minAmount, setMinAmount] = useState('');
+    const [maxAmount, setMaxAmount] = useState('');
+    const [searchText, setSearchText] = useState('');
+
+    // Opciones derivadas de los propios movimientos
+    const availableCategories = useMemo(() => {
+        const set = new Set<string>();
+        transactions.forEach(t => { if (t.category_name) set.add(t.category_name); });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [transactions]);
+
+    const availableMembers = useMemo(() => {
+        const map = new Map<string, string>();
+        transactions.forEach(t => {
+            if (t.user_id) map.set(t.user_id, t.user_name || 'Sin nombre');
+        });
+        return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    }, [transactions]);
+
+    const hasActiveFilters =
+        categoryFilter !== 'all' || memberFilter !== 'all' || typeFilter !== 'all' ||
+        minAmount !== '' || maxAmount !== '' || searchText.trim() !== '';
+
+    const resetFilters = () => {
+        setCategoryFilter('all');
+        setMemberFilter('all');
+        setTypeFilter('all');
+        setMinAmount('');
+        setMaxAmount('');
+        setSearchText('');
+    };
+
     // Filter Data
     const filteredTransactions = useMemo(() => {
         const start = new Date(startDate);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
+        const min = minAmount.trim() ? Number(minAmount.replace(/\./g, '')) : null;
+        const max = maxAmount.trim() ? Number(maxAmount.replace(/\./g, '')) : null;
+        const needle = searchText.trim().toLowerCase();
+
         return transactions.filter(t => {
             const d = new Date(t.date);
-            return d >= start && d <= end;
+            if (d < start || d > end) return false;
+
+            if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+
+            if (categoryFilter !== 'all' && (t.category_name || 'Otros') !== categoryFilter) return false;
+
+            if (memberFilter !== 'all' && t.user_id !== memberFilter) return false;
+
+            const amount = Math.abs(Number(t.amount || 0));
+            if (min !== null && !Number.isNaN(min) && amount < min) return false;
+            if (max !== null && !Number.isNaN(max) && amount > max) return false;
+
+            if (needle) {
+                const haystack = `${t.description || ''} ${t.merchant || ''} ${t.category_name || ''}`.toLowerCase();
+                if (!haystack.includes(needle)) return false;
+            }
+
+            return true;
         });
-    }, [transactions, startDate, endDate]);
+    }, [transactions, startDate, endDate, categoryFilter, memberFilter, typeFilter, minAmount, maxAmount, searchText]);
 
     // Financial Analysis (Insights)
     const [reportId] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
@@ -349,6 +407,100 @@ export default function ReportsClient({ transactions }: Props) {
                         </Button>
                     </div>
                 </div>
+            </section>
+
+            {/* Filtros avanzados */}
+            <section className="config-section">
+                <Card variant="outline" className="p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                        <Typography variant="h3" className="flex items-center gap-2">
+                            <Filter size={16} /> Filtros
+                        </Typography>
+                        {hasActiveFilters && (
+                            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-slate-500">
+                                <RotateCcw size={14} className="mr-1" /> Limpiar
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Categoría</span>
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            >
+                                <option value="all">Todas las categorías</option>
+                                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </label>
+
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Integrante</span>
+                            <select
+                                value={memberFilter}
+                                onChange={(e) => setMemberFilter(e.target.value)}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            >
+                                <option value="all">Todo el hogar</option>
+                                {availableMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                        </label>
+
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipo</span>
+                            <select
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value as 'all' | 'income' | 'expense')}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            >
+                                <option value="all">Ingresos y gastos</option>
+                                <option value="expense">Solo gastos</option>
+                                <option value="income">Solo ingresos</option>
+                            </select>
+                        </label>
+
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Monto mínimo</span>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={minAmount}
+                                onChange={(e) => setMinAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                                placeholder="0"
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            />
+                        </label>
+
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Monto máximo</span>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={maxAmount}
+                                onChange={(e) => setMaxAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                                placeholder="Sin límite"
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            />
+                        </label>
+
+                        <label className="block">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Buscar</span>
+                            <input
+                                type="text"
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                placeholder="Descripción o comercio"
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                            />
+                        </label>
+                    </div>
+
+                    <p className="mt-3 text-[11px] text-slate-500 font-medium">
+                        {filteredTransactions.length} de {transactions.length} movimientos incluidos en el reporte.
+                    </p>
+                </Card>
             </section>
 
             {/* Mobile Insight Cards (Quick View) */}

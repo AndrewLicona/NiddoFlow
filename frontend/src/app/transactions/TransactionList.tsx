@@ -23,12 +23,26 @@ import {
     Loader2,
     Download,
     Image as ImageIcon,
-    ExternalLink
+    ExternalLink,
+    CreditCard,
+    ShoppingBasket
 } from 'lucide-react';
 
 import { useTransactions } from '@/hooks/useTransactions';
+import { useItemCategories } from '@/hooks/useItemCategories';
 import { useCategories } from '@/hooks/useCategories';
 import { useAccounts } from '@/hooks/useAccounts';
+
+interface TransactionItem {
+    id: string;
+    item_name: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    category?: string | null;
+    category_id?: string | null;
+    confidence?: number | null;
+}
 
 interface Transaction {
     id: string;
@@ -44,10 +58,15 @@ interface Transaction {
     receipt_url?: string;
     target_account_id?: string;
     target_account_name?: string;
+    merchant?: string | null;
+    items?: TransactionItem[];
+    installment_current?: number | null;
+    installment_total?: number | null;
+    purchase_total_amount?: number | null;
 }
 
 const TransactionList: React.FC = () => {
-    const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, isLoading: txLoading } = useTransactions();
+    const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, exportTransactions, isLoading: txLoading } = useTransactions();
     const { categories, isLoading: catLoading } = useCategories();
     const { accounts, isLoading: accLoading } = useAccounts();
 
@@ -171,31 +190,24 @@ const TransactionList: React.FC = () => {
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
-
-            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/transactions/export?scope=${exportScope}&start_date=${exportRange.start}&end_date=${exportRange.end}`;
-            const res = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            const res = await exportTransactions.mutateAsync({
+                scope: exportScope,
+                start_date: exportRange.start,
+                end_date: exportRange.end,
             });
 
-            if (res.ok) {
-                const blob = await res.blob();
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.download = `audit_${exportScope}_${exportRange.start}_to_${exportRange.end}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                setShowExportModal(false);
-            } else {
-                alert('Error al generar la exportación');
-            }
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `audit_${exportScope}_${exportRange.start}_to_${exportRange.end}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setShowExportModal(false);
         } catch (error) {
             console.error(error);
-            alert('Error al exportar');
+            alert('Error al generar la exportación');
         } finally {
             setIsExporting(false);
         }
@@ -364,6 +376,11 @@ const TransactionList: React.FC = () => {
                                                                     {t.receipt_url && (
                                                                         <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0" title="Ver Soporte">
                                                                             <ImageIcon size={8} className="mr-1 md:w-2.5 md:h-2.5" /> Soporte
+                                                                        </span>
+                                                                    )}
+                                                                    {t.items && t.items.length > 0 && (
+                                                                        <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-600 rounded text-[7px] md:text-[9px] font-black uppercase tracking-widest flex items-center flex-shrink-0" title="Productos detectados en la factura">
+                                                                            <ShoppingBasket size={8} className="mr-1 md:w-2.5 md:h-2.5" /> {t.items.length}
                                                                         </span>
                                                                     )}
                                                                     {(t.description.includes('[COBRO DEUDA]') || t.description.includes('[PAGO DEUDA]') || t.description.toLowerCase().includes('pago de deuda')) && (
@@ -541,6 +558,29 @@ const TransactionList: React.FC = () => {
                                                                         </div>
                                                                     )}
                                                                 </div>
+                                                                {t.items && t.items.length > 0 && (
+                                                                    <TransactionItemsPanel
+                                                                        items={t.items}
+                                                                        categories={categories}
+                                                                        transactionId={t.id}
+                                                                        merchant={t.merchant || t.description}
+                                                                    />
+                                                                )}
+                                                                {t.installment_total && t.installment_total > 1 && (
+                                                                    <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3 dark:bg-amber-900/20 dark:border-amber-500/20">
+                                                                        <CreditCard size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                                                                        <div>
+                                                                            <Typography variant="small" className="font-bold text-amber-700 dark:text-amber-300">
+                                                                                Compra a cuotas {t.installment_current} de {t.installment_total}
+                                                                            </Typography>
+                                                                            {t.purchase_total_amount && (
+                                                                                <Typography variant="small" className="text-amber-600 dark:text-amber-400">
+                                                                                    Total de la compra: {formatCurrency(t.purchase_total_amount)}
+                                                                                </Typography>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                                 <div className="flex justify-end space-x-3">
                                                                     <Button variant="ghost" size="sm" className="text-foreground/40 hover:text-primary hover:bg-primary/10 group transition-all rounded-xl" onClick={() => startEditing(t)}>
                                                                         <Edit2 size={16} className="mr-2 group-hover:scale-110 transition-transform" />
@@ -671,3 +711,108 @@ const TransactionList: React.FC = () => {
 };
 
 export default TransactionList;
+
+/**
+ * Panel de productos detectados en una factura.
+ *
+ * Cada línea muestra el producto, su cantidad, el total y la categoría en la
+ * que quedó clasificado. La categoría es editable: el OCR propone y el
+ * usuarioCorrige, que es lo que permite que la app aprenda.
+ */
+function TransactionItemsPanel({
+    items,
+    categories,
+    transactionId,
+    merchant,
+}: {
+    items: TransactionItem[];
+    categories: { id: string; name: string; type: string }[];
+    transactionId: string;
+    merchant?: string | null;
+}) {
+    const { updateItemCategory, isSaving } = useItemCategories(transactionId, merchant);
+    const [local, setLocal] = useState<Record<string, string>>({});
+
+    const total = items.reduce((acc, i) => acc + Number(i.total_price || 0), 0);
+    const withoutCategory = items.filter((i) => !i.category && !i.category_id).length;
+
+    const currentCategory = (item: TransactionItem) =>
+        local[item.id] ?? item.category_id ?? "";
+
+    const handleChange = (item: TransactionItem, categoryId: string) => {
+        setLocal((prev) => ({ ...prev, [item.id]: categoryId }));
+        const category = categories.find((c) => c.id === categoryId);
+        updateItemCategory(
+            {
+                item_id: item.id,
+                category_id: categoryId || null,
+                category: category?.name ?? null,
+            },
+            item.item_name
+        );
+    };
+
+    return (
+        <div className="mb-6 rounded-2xl border border-foreground/5 bg-foreground/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    <ShoppingBasket size={15} className="text-blue-500" />
+                    <Typography variant="small" className="font-black uppercase tracking-widest text-[10px] opacity-50">
+                        Productos ({items.length})
+                    </Typography>
+                    {isSaving && <Loader2 size={12} className="animate-spin opacity-50" />}
+                </div>
+                {withoutCategory > 0 && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700 border border-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-500/20">
+                        {withoutCategory} sin categoría
+                    </span>
+                )}
+            </div>
+
+            <ul className="divide-y divide-foreground/5">
+                {items.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+                        <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">{item.item_name}</div>
+                            {Number(item.quantity) !== 1 && (
+                                <div className="text-[10px] opacity-40">× {item.quantity}</div>
+                            )}
+                        </div>
+
+                        <select
+                            value={currentCategory(item)}
+                            onChange={(e) => handleChange(item, e.target.value)}
+                            className="rounded-lg border border-foreground/10 bg-background px-2 py-1 text-[11px] max-w-[150px]"
+                            aria-label={`Categoría de ${item.item_name}`}
+                        >
+                            <option value="">Sin categoría</option>
+                            {categories
+                                .filter((c) => c.type === "expense")
+                                .map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                        </select>
+
+                        <div className="text-right whitespace-nowrap">
+                            <div className="text-sm font-bold">{formatCurrency(item.total_price)}</div>
+                            {Number(item.quantity) !== 1 && (
+                                <div className="text-[10px] opacity-40">
+                                    {formatCurrency(item.unit_price)} c/u
+                                </div>
+                            )}
+                        </div>
+                    </li>
+                ))}
+            </ul>
+
+            {total > 0 && (
+                <div className="mt-3 flex items-center justify-between border-t border-foreground/5 pt-3">
+                    <Typography variant="small" className="font-black uppercase tracking-widest text-[10px] opacity-40">
+                        Total productos
+                    </Typography>
+                    <Typography variant="body" className="font-black">{formatCurrency(total)}</Typography>
+                </div>
+            )}
+        </div>
+    );
+}

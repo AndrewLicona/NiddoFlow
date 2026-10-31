@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, History, Target, Banknote, Settings, LogOut, Plus } from 'lucide-react';
+import { Home, History, Target, Banknote, Settings, LogOut, Plus, Landmark, ShoppingBasket } from 'lucide-react';
 import { signout } from '@/app/login/actions';
 import { useState } from 'react';
 
@@ -12,6 +12,10 @@ const navItems = [
     { name: 'Historial', href: '/transactions', icon: History },
     { name: 'Límites', href: '/budgets', icon: Target },
     { name: 'Deudas', href: '/debts', icon: Banknote },
+    { name: 'Importar movimientos', href: '/import', icon: Landmark },
+    { name: 'Necesidades', href: '/shopping', icon: ShoppingBasket },
+    { name: 'Metas', href: '/goals', icon: Target },
+    { name: 'Cuentas del hogar', href: '/bills', icon: Home },
     { name: 'Ajustes', href: '/settings', icon: Settings },
 ];
 
@@ -74,7 +78,7 @@ export const Navigation = () => {
                     N
                 </div>
 
-                <div className="flex-1 flex flex-col items-center space-y-8">
+                <div className="flex-1 flex flex-col items-center space-y-8 overflow-y-auto w-full py-1">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href;
                         const Icon = item.icon;

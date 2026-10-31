@@ -31,3 +31,64 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
     return response.json();
 }
+
+/**
+ * Igual que `fetchWithAuth` pero para envíos `multipart/form-data`.
+ *
+ * NO se fija `Content-Type`: el navegador debe añadir el `boundary` del
+ * multipart, y ponerlo a mano rompe el archivo (la cabecera quedaría
+ * `multipart/form-data` sin boundary y el backend no parsearía el archivo).
+ */
+export async function fetchWithAuthFormData(url: string, formData: FormData) {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    const headers: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+    }
+
+    const response = await fetch(`${baseUrl}${url}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+        throw new Error(error.detail || response.statusText);
+    }
+
+    return response.json();
+}
+
+/**
+ * Devuelve la `Response` cruda para descargas binarias (PDF, CSV, ...).
+ * `fetchWithAuth` no sirve aquí porque siempre intenta parsear JSON.
+ */
+export async function fetchWithAuthRaw(url: string) {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    const headers: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+    }
+
+    const response = await fetch(`${baseUrl}${url}`, { headers });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+        throw new Error(error.detail || response.statusText);
+    }
+
+    return response;
+}

@@ -23,15 +23,26 @@ interface Profile {
     full_name: string | null;
 }
 
+/** Gasto por miembro tal como lo devuelve el servidor (`/insights`). */
+export type MemberDatum = {
+    name: string;
+    value: number;
+};
+
 interface Props {
-    transactions: Transaction[];
+    /** Datos del servidor. Si no se pasan, se calculan desde `transactions`. */
+    data?: MemberDatum[];
+    transactions?: Transaction[];
     profiles?: Profile[];
 }
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6', '#06B6D4', '#EC4899'];
 
-const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
-    const data = useMemo(() => {
+const UserExpensesPieChart: React.FC<Props> = ({ data, transactions, profiles }) => {
+    const chartData = useMemo<MemberDatum[]>(() => {
+        if (data) return [...data].sort((a, b) => b.value - a.value);
+
+        // Respaldo para las pantallas que aún no consumen `/insights`.
         const userMap: Record<string, number> = {};
         const profileMap: Record<string, string> = {};
 
@@ -39,7 +50,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
             profileMap[p.id] = p.full_name || 'Usuario';
         });
 
-        transactions
+        (transactions ?? [])
             .filter(t => t.type === 'expense')
             .forEach(t => {
                 // Use profile map if available, otherwise user_name from transaction, or default
@@ -53,7 +64,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
             name,
             value,
         })).sort((a, b) => b.value - a.value);
-    }, [transactions, profiles]);
+    }, [data, transactions, profiles]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-CO', {
@@ -64,7 +75,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
         }).format(value);
     };
 
-    if (data.length === 0) {
+    if (chartData.length === 0) {
         return (
             <div className="flex h-64 items-center justify-center text-foreground/30 font-medium">
                 No hay datos de integrantes para mostrar.
@@ -77,7 +88,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
             <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                     <Pie
-                        data={data}
+                        data={chartData}
                         cx="50%"
                         cy="45%"
                         innerRadius={50}
@@ -86,7 +97,7 @@ const UserExpensesPieChart: React.FC<Props> = ({ transactions, profiles }) => {
                         dataKey="value"
 
                     >
-                        {data.map((_, index) => (
+                        {chartData.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                     </Pie>

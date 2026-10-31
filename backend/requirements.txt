@@ -13,3 +13,8 @@ Pillow
 google-genai
 openai
 reportlab
+
+# Pruebas (solo para desarrollo; no se usan en tiempo de ejecución)
+pytest
+pytest-asyncio
+httpx

@@ -9,6 +9,7 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useFamily } from '@/hooks/useFamily';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useInsights } from '@/hooks/useInsights';
 import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -32,8 +33,9 @@ import { ChartEmptyState } from './ChartEmptyState';
 export default function ChartCarousel() {
     const { transactions, isLoading: txLoading } = useTransactions();
     const { accounts, isLoading: accountsLoading } = useAccounts();
-    const { members: profiles, isLoading: profilesLoading } = useFamily();
+    const { isLoading: profilesLoading } = useFamily();
     const { preparedData, isLoading: dashboardLoading } = useDashboard();
+    const { byCategory, byMember, isLoading: insightsLoading } = useInsights();
 
     const trends = preparedData.trends;
     const [page, setPage] = useState(0)
@@ -41,7 +43,27 @@ export default function ChartCarousel() {
     // Helper to check if we have enough data to show interesting charts
     const hasData = (transactions && transactions.length > 0) || (accounts && accounts.length > 0);
 
-    if (txLoading || accountsLoading || profilesLoading || dashboardLoading) {
+    /**
+     * Los desgloses por categoría y por miembro los calcula el servidor
+     * (`/insights`), así que los gráficos muestran exactamente los mismos
+     * números que las tarjetas y que el resto de la app.
+     */
+    const distributionData = useMemo(
+        () => byCategory.map((c) => ({ name: c.category, value: Number(c.amount), color: '' })),
+        [byCategory]
+    );
+
+    const categoryRanking = useMemo(
+        () => byCategory.map((c) => ({ category: c.category, amount: Number(c.amount) })),
+        [byCategory]
+    );
+
+    const memberDistribution = useMemo(
+        () => byMember.map((m) => ({ name: m.member, value: Number(m.amount) })),
+        [byMember]
+    );
+
+    if (txLoading || accountsLoading || profilesLoading || dashboardLoading || insightsLoading) {
         return (
             <Card variant="elevated" className="flex items-center justify-center min-h-[450px]">
                 <Loader2 className="animate-spin text-indigo-600" size={40} />
@@ -52,23 +74,6 @@ export default function ChartCarousel() {
     if (!hasData) {
         return <ChartEmptyState />;
     }
-
-    // Prepare distribution data for the specific component that needs it in a special format
-    const distributionData = useMemo(() => {
-        const expensesByCategory = transactions
-            .filter((t: any) => t.type === 'expense')
-            .reduce((acc: Record<string, number>, curr: any) => {
-                const catName = curr.category_name || curr.categories?.name || 'Otros'
-                acc[catName] = (acc[catName] || 0) + Number(curr.amount)
-                return acc
-            }, {})
-
-        return Object.entries(expensesByCategory).map(([name, value]: [string, any]) => ({
-            name,
-            value: Number(value),
-            color: ''
-        }))
-    }, [transactions]);
 
     const charts = [
         {
@@ -99,7 +104,7 @@ export default function ChartCarousel() {
             id: 'ranking',
             title: 'Ranking de Categorías',
             icon: <BarChart3 className="text-purple-500" size={24} />,
-            component: <CategoryBarChart transactions={transactions} />
+            component: <CategoryBarChart data={categoryRanking} />
         },
         {
             id: 'area',
@@ -111,7 +116,7 @@ export default function ChartCarousel() {
             id: 'users',
             title: 'Gastos por Miembro',
             icon: <Users className="text-cyan-500" size={24} />,
-            component: <UserExpensesPieChart transactions={transactions} profiles={profiles} />
+            component: <UserExpensesPieChart data={memberDistribution} />
         }
     ]
 

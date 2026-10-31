@@ -1,26 +1,25 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
-import { InputField } from '@/components/ui/molecules/InputField';
+import OcrItemsEditor, { type OcrItem } from '@/components/ui/molecules/OcrItemsEditor';
+import { useCategories } from '@/hooks/useCategories';
+import { useAccounts } from '@/hooks/useAccounts';
 import { createBulkTransactions } from '../actions';
-import { 
-    Upload, 
-    FileText, 
-    Trash2, 
-    CheckCircle2, 
-    AlertCircle, 
-    Loader2, 
-    Plus, 
-    Save, 
-    FileArchive,
+import {
+    Upload,
+    Trash2,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
+    Save,
     ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency } from '@/utils/format';
-import { createClient } from '@/utils/supabase/client';
+import { useOcrExtractBulk } from '@/hooks/useOcr';
 
 interface Category {
     id: string;
@@ -34,6 +33,12 @@ interface Account {
     balance: number;
 }
 
+interface OcrInstallments {
+    current: number;
+    total: number;
+    purchase_total_amount: number;
+}
+
 interface OCRResult {
     id_temp: string;
     amount: number | null;
@@ -44,6 +49,12 @@ interface OCRResult {
     status: 'pending' | 'processing' | 'success' | 'error';
     account_id: string;
     category_id: string;
+    // Datos del OCR que ahora se conservan y se envían al backend.
+    merchant: string | null;
+    items: OcrItem[];
+    installments: OcrInstallments | null;
+    image_hash: string | null;
+    is_duplicate: boolean;
 }
 
 interface Props {
@@ -56,65 +67,23 @@ export default function BulkTransactionClient({ categories: initialCategories, a
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [categories, setCategories] = useState<Category[]>(initialCategories);
-    const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Ensure we have accounts/categories if server fetch failed
-    useEffect(() => {
-        const fetchMetadata = async () => {
-            if (categories.length > 0 && accounts.length > 0) return;
-            
-            try {
-                const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                const supabase = createClient();
-                const { data: { session } } = await supabase.auth.getSession();
-                const headers: Record<string, string> = {};
-                if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
+    // React Query para todo el fetching (categorías y cuentas).
+    const { categories: fetchedCategories, createCategoryRule } = useCategories();
+    const { accounts: fetchedAccounts } = useAccounts();
+    const extractBulk = useOcrExtractBulk();
 
-                if (categories.length === 0) {
-                    const resCat = await fetch(`${baseUrl}/categories/`, { headers });
-                    if (resCat.ok) setCategories(await resCat.json());
-                }
-                
-                if (accounts.length === 0) {
-                    const resAcc = await fetch(`${baseUrl}/accounts/?scope=family`, { headers });
-                    if (resAcc.ok) setAccounts(await resAcc.json());
-                }
-            } catch (err) {
-                console.error("Error refreshing metadata:", err);
-            }
-        };
-        fetchMetadata();
-    }, []);
+    const categories: Category[] = fetchedCategories.length > 0 ? fetchedCategories : initialCategories;
+    const accounts: Account[] = fetchedAccounts?.length > 0 ? fetchedAccounts : initialAccounts;
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
         setIsProcessing(true);
-        const formData = new FormData();
-        Array.from(files).forEach(file => {
-            formData.append('files', file);
-        });
-
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            const headers: Record<string, string> = {};
-            if (session) headers['Authorization'] = `Bearer ${session.access_token}`;
-
-            const response = await fetch(`${baseUrl}/api/ocr/extract-bulk`, {
-                method: 'POST',
-                headers,
-                body: formData,
-            });
-
-            if (!response.ok) throw new Error('Bulk OCR failed');
-
-            const data = await response.json();
+            const data = await extractBulk.mutateAsync(Array.from(files));
             
             // Map results and try to match categories
             const mappedResults: OCRResult[] = data.map((res: any, index: number) => {
@@ -141,7 +110,24 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                     nature: nature,
                     status: 'success',
                     account_id: accounts[0]?.id || '',
-                    category_id: matchedId
+                    category_id: matchedId,
+                    merchant: res.merchant ?? null,
+                    installments: res.installments ?? null,
+                    image_hash: res.image_hash ?? null,
+                    is_duplicate: !!res.duplicate,
+                    items: Array.isArray(res.items)
+                        ? res.items
+                            .filter((item: any) => item && item.item_name)
+                            .map((item: any) => ({
+                                item_name: String(item.item_name),
+                                quantity: Number(item.quantity) || 1,
+                                unit_price: Number(item.unit_price) || 0,
+                                total_price: Number(item.total_price) || 0,
+                                category: item.category ?? null,
+                                category_id: item.category_id ?? null,
+                                confidence: item.confidence ?? null,
+                            }))
+                        : [],
                 };
             });
 
@@ -157,6 +143,31 @@ export default function BulkTransactionClient({ categories: initialCategories, a
 
     const updateResult = (id: string, field: keyof OCRResult, value: any) => {
         setResults(prev => prev.map(r => r.id_temp === id ? { ...r, [field]: value } : r));
+    };
+
+    const updateItems = (id: string, items: OcrItem[]) => {
+        setResults(prev => prev.map(r => r.id_temp === id ? { ...r, items } : r));
+    };
+
+    /**
+     * El usuario corrige la categoría de un producto → guardamos la regla aprendida.
+     * Best-effort: si falla, no molestamos al usuario.
+     */
+    const handleCategoryCorrected = async (id: string, item: OcrItem, categoryId: string) => {
+        const result = results.find(r => r.id_temp === id);
+        const categoryName = categories.find(c => c.id === categoryId)?.name;
+        const merchantKey = (result?.merchant || result?.description || '').trim();
+        if (!categoryName || !merchantKey || !item.item_name) return;
+
+        try {
+            await createCategoryRule.mutateAsync({
+                merchant: merchantKey,
+                raw_keyword: item.item_name,
+                category: categoryName,
+            });
+        } catch {
+            // Silencioso a propósito: la regla es una mejora, no un requisito.
+        }
     };
 
     const formatInputValue = (val: number | null) => {
@@ -193,7 +204,21 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                 category_id: r.category_id || null,
                 account_id: r.account_id,
                 date: r.date,
-                receipt_url: null
+                receipt_url: null,
+                // Datos del OCR: comercio, productos, cuotas y huella de la imagen.
+                merchant: r.merchant || null,
+                source: 'ocr' as const,
+                image_hash: r.image_hash,
+                installments: r.installments,
+                items: r.items.map(item => ({
+                    item_name: item.item_name,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    total_price: item.total_price,
+                    category: item.category ?? null,
+                    category_id: item.category_id ?? null,
+                    confidence: item.confidence ?? null,
+                })),
             }));
 
             await createBulkTransactions(payload as any);
@@ -387,6 +412,42 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                                         </Button>
                                     </div>
                                 </div>
+
+                                {/* Productos detectados por el OCR */}
+                                {(res.items.length > 0 || res.installments || res.is_duplicate) && (
+                                    <div className="px-4 md:px-5 pb-4 md:pb-5 space-y-3">
+                                        {res.is_duplicate && (
+                                            <div className="rounded-2xl border border-amber-500/20 bg-amber-50 dark:bg-amber-900/10 px-3 py-2 flex items-center gap-2">
+                                                <AlertCircle size={16} className="text-amber-500 shrink-0" />
+                                                <Typography variant="small" className="text-amber-700 dark:text-amber-300">
+                                                    Posible factura duplicada · revisa antes de guardar
+                                                </Typography>
+                                            </div>
+                                        )}
+
+                                        {res.installments && (
+                                            <div className="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                                                <Typography variant="small" className="text-amber-700 dark:text-amber-300">
+                                                    Cuota {res.installments.current} de {res.installments.total}
+                                                </Typography>
+                                                <Typography variant="body" className="font-black text-amber-800 dark:text-amber-200">
+                                                    Total de la compra: {formatCurrency(res.installments.purchase_total_amount)}
+                                                </Typography>
+                                            </div>
+                                        )}
+
+                                        {res.items.length > 0 && (
+                                            <OcrItemsEditor
+                                                items={res.items}
+                                                categories={categories}
+                                                onChange={(next) => updateItems(res.id_temp, next)}
+                                                onCategoryCorrected={(item, categoryId) =>
+                                                    handleCategoryCorrected(res.id_temp, item, categoryId)
+                                                }
+                                            />
+                                        )}
+                                    </div>
+                                )}
                             </Card>
                         ))}
                     </div>

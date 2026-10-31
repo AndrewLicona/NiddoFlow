@@ -1,55 +1,49 @@
 'use client'
 
 import { Typography } from '@/components/ui/atoms/Typography'
-import { AlertCircle, Brain, TrendingUp, TrendingDown, PieChart, AlertTriangle, Sparkles, Lightbulb, PiggyBank, CalendarClock, Activity } from 'lucide-react'
+import { AlertCircle, Brain, AlertTriangle, Sparkles, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/utils/format'
 import { useMemo } from 'react'
-import { generateInsights } from '@/utils/analytics'
 import { motion } from 'framer-motion'
 
-import { useTransactions } from '@/hooks/useTransactions';
 import { useBudgets } from '@/hooks/useBudgets';
 import { useDebts } from '@/hooks/useDebts';
-import { Loader2 } from 'lucide-react';
+import { isBudgetActiveNow } from '@/app/dashboard/lib/budgetPeriod';
 
 interface SmartFeedProps {
     currentDate: Date | null;
 }
 
 export default function SmartFeed({ currentDate }: SmartFeedProps) {
-    const { transactions, isLoading: txLoading } = useTransactions();
     const { budgets, isLoading: budgetsLoading } = useBudgets();
     const { debts, isLoading: debtsLoading } = useDebts();
-    const budgetStats = useMemo(() => {
-        // Group expenses by category once for O(N + M) efficiency
-        const expensesByCategory = transactions
-            .filter((t: any) => t.type === 'expense')
-            .reduce((acc: Record<string, number>, t: any) => {
-                acc[t.category_id] = (acc[t.category_id] || 0) + Number(t.amount);
-                return acc;
-            }, {});
 
-        return budgets.map((budget: any) => {
-            const spent = expensesByCategory[budget.category_id] || 0;
-            const percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
-            return { ...budget, spent, percent };
-        });
-    }, [budgets, transactions]);
+    const today = useMemo(() => currentDate ?? new Date(), [currentDate]);
 
-    const budgetAlerts = useMemo(() =>
-        budgetStats.filter((b: any) => b.percent >= 80),
-        [budgetStats]);
+    /**
+     * Los presupuestos del período actual. `spent`, `percent` y `status` los
+     * calcula el servidor (`GET /budgets/`), acotados al mes/semana de cada
+     * presupuesto. El dashboard ya NO vuelve a sumar los movimientos: así el
+     * aviso coincide con la página de presupuestos y con `/insights`.
+     */
+    const activeBudgets = useMemo(
+        () => budgets.filter((b: any) => isBudgetActiveNow(b, today)),
+        [budgets, today]
+    );
+
+    const budgetAlerts = useMemo(
+        () => activeBudgets.filter((b: any) => {
+            if (b.status) return b.status !== 'ok';
+            return Number(b.percent) >= 80;
+        }),
+        [activeBudgets]
+    );
 
     const debtToPay = useMemo(() =>
         debts
             .filter((d: any) => d.type === 'to_pay' && d.status === 'active')
             .reduce((acc: number, d: any) => acc + d.remaining_amount, 0),
         [debts]);
-
-    const insights = useMemo(() => {
-        if (!currentDate) return [];
-        return generateInsights(transactions, budgets, currentDate);
-    }, [transactions, budgets, currentDate])
 
     // Combine all "feed items" into a single list
     const feedItems = [
@@ -64,30 +58,19 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
             borderColor: 'border-rose-100 dark:border-rose-900/30'
         }] : []),
 
-        // 2. Budget Alerts
+        // 2. Budget Alerts (gastado real del período, calculado en el servidor)
         ...budgetAlerts.map((b: any) => ({
             id: `budget-${b.id}`,
-            type: 'warning',
-            icon: <AlertTriangle size={20} className="text-orange-500" />,
+            type: b.status === 'critical' ? 'critical' : 'warning',
+            icon: <AlertTriangle size={20} className={b.status === 'critical' ? 'text-rose-500' : 'text-orange-500'} />,
             title: 'Presupuesto',
-            message: `${b.category_name || b.categories?.name || 'Categoría'} al ${(b.percent).toFixed(0)}%`,
-            bgColor: 'bg-orange-50 dark:bg-orange-900/10',
-            borderColor: 'border-orange-100 dark:border-orange-900/30'
-        })),
-
-        // 3. AI Insights
-        ...insights.map((i: any) => ({
-            id: i.id,
-            type: i.type,
-            icon: getIcon(i.icon),
-            title: i.metric || 'Insight',
-            message: i.message,
-            bgColor: 'bg-indigo-50 dark:bg-indigo-900/10',
-            borderColor: 'border-indigo-100 dark:border-indigo-900/30'
+            message: `${b.category_name || b.categories?.name || 'Categoría'} al ${Number(b.percent || 0).toFixed(0)}% · ${formatCurrency(Number(b.spent || 0))} gastado`,
+            bgColor: b.status === 'critical' ? 'bg-rose-50 dark:bg-rose-900/10' : 'bg-orange-50 dark:bg-orange-900/10',
+            borderColor: b.status === 'critical' ? 'border-rose-100 dark:border-rose-900/30' : 'border-orange-100 dark:border-orange-900/30'
         }))
     ]
 
-    if (txLoading || budgetsLoading || debtsLoading) {
+    if (budgetsLoading || debtsLoading) {
         return (
             <div className="flex items-center justify-center p-8">
                 <Loader2 className="animate-spin text-indigo-600" size={24} />
@@ -114,12 +97,12 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
             {/* Header */}
             <div className="flex items-center gap-2 mb-3 px-1">
                 <Brain className="text-indigo-500" size={18} />
-                <Typography variant="small" className="text-foreground/70 font-black uppercase tracking-widest text-[10px]">Centro de Inteligencia</Typography>
+                <Typography variant="small" className="text-foreground/70 font-black uppercase tracking-widest text-[10px]">Alertas</Typography>
             </div>
 
             {/* Responsive Container: Horizontal Scroll on Mobile, Grid on Desktop */}
             <div className="
-                flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4 
+                flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-4 px-4
                 md:mx-0 md:px-0 md:overflow-visible md:pb-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4
             ">
                 {feedItems.map((item) => (
@@ -128,7 +111,7 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         className={`
-                            snap-center shrink-0 w-[280px] md:w-auto 
+                            snap-center shrink-0 w-[280px] md:w-auto
                             p-4 rounded-2xl border ${item.borderColor} ${item.bgColor}
                             flex flex-col justify-between gap-3 h-full
                         `}
@@ -149,18 +132,4 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
             </div>
         </div>
     )
-}
-
-function getIcon(iconName?: string) {
-    switch (iconName) {
-        case 'TrendingUp': return <TrendingUp size={20} className="text-rose-500" />
-        case 'TrendingDown': return <TrendingDown size={20} className="text-emerald-500" />
-        case 'PieChart': return <PieChart size={20} className="text-indigo-500" />
-        case 'AlertTriangle': return <AlertTriangle size={20} className="text-orange-500" />
-        case 'Sparkles': return <Sparkles size={20} className="text-purple-500" />
-        case 'PiggyBank': return <PiggyBank size={20} className="text-pink-500" />
-        case 'CalendarClock': return <CalendarClock size={20} className="text-cyan-500" />
-        case 'Activity': return <Activity size={20} className="text-blue-500" />
-        default: return <Lightbulb size={20} className="text-yellow-500" />
-    }
 }

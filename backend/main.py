@@ -20,6 +20,11 @@ from app.routers import debt as debt_router
 from app.routers import stats as stats_router
 from app.routers import ocr as ocr_router
 from app.routers import chat as chat_router
+from app.routers import insights as insights_router
+from app.routers import bank_import as bank_import_router
+from app.routers import recurring_bills as recurring_bills_router
+from app.routers import shopping as shopping_router
+from app.routers import goals as goals_router
 
 from contextlib import asynccontextmanager
 from app.db.prisma_db import connect_prisma, disconnect_prisma
@@ -76,6 +81,11 @@ app.include_router(debt_router.router)
 app.include_router(stats_router.router)
 app.include_router(ocr_router.router)
 app.include_router(chat_router.router)
+app.include_router(insights_router.router)
+app.include_router(bank_import_router.router)
+app.include_router(recurring_bills_router.router)
+app.include_router(shopping_router.router)
+app.include_router(goals_router.router)
 
 @app.get("/")
 def read_root():

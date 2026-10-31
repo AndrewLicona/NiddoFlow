@@ -8,8 +8,11 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
+import OcrItemsEditor, { type OcrItem } from '@/components/ui/molecules/OcrItemsEditor';
+import { useCategories } from '@/hooks/useCategories';
+import { useOcrExtract } from '@/hooks/useOcr';
 import { formatCurrency } from '@/utils/format';
-import { Save, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
+import { Save, X, Plus, Paperclip, Loader2, Trash2, Store, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 interface Category {
@@ -29,6 +32,19 @@ interface Props {
     accounts: Account[];
 }
 
+interface OcrInstallments {
+    current: number | null;
+    total: number | null;
+    purchase_total_amount: number | null;
+}
+
+const CONFIDENCE_LABELS: Record<string, string> = {
+    amount: 'Monto',
+    date: 'Fecha',
+    merchant: 'Comercio',
+    total: 'Total',
+};
+
 export default function TransactionFormClient({ categories, accounts }: Props) {
     const [uploading, setUploading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
@@ -40,6 +56,19 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [categoryId, setCategoryId] = useState('');
+
+    // Datos del OCR que ahora sí se conservan y persisten.
+    const [items, setItems] = useState<OcrItem[]>([]);
+    const [merchant, setMerchant] = useState('');
+    const [source, setSource] = useState<'manual' | 'ocr'>('manual');
+    const [ocrConfidence, setOcrConfidence] = useState<Record<string, number>>({});
+    const [isDuplicate, setIsDuplicate] = useState(false);
+    const [duplicateOf, setDuplicateOf] = useState<string | null>(null);
+    const [installments, setInstallments] = useState<OcrInstallments | null>(null);
+    const [imageHash, setImageHash] = useState<string | null>(null);
+
+    const { createCategoryRule } = useCategories();
+    const extractReceipt = useOcrExtract();
 
     // Helper to format number with dots (thousands separators)
     const formatNumber = (value: string) => {
@@ -84,31 +113,11 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
     const scanReceipt = async (file: File) => {
         setIsScanning(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
+            const data = await extractReceipt.mutateAsync(file);
 
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-            
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            const headers: Record<string, string> = {};
-            if (session) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
+            // Procedencia de los datos: a partir de aquí la factura viene del OCR.
+            setSource('ocr');
 
-            const response = await fetch(`${baseUrl}/api/ocr/extract`, {
-                method: 'POST',
-                headers,
-                body: formData,
-            });
-
-            if (!response.ok) {
-                console.error("OCR failed");
-                return;
-            }
-
-            const data = await response.json();
-            
             // Set Nature (Type)
             if (data.nature) {
                 const natureMap: Record<string, string> = {
@@ -126,6 +135,35 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
             }
             if (data.description) setDescription(data.description);
             if (data.date) setDate(data.date.slice(0, 16));
+
+            // Comercio normalizado, confianza por campo, cuotas y duplicados.
+            if (data.merchant) setMerchant(data.merchant);
+            if (data.confidence && typeof data.confidence === 'object') {
+                setOcrConfidence(data.confidence);
+            }
+            if (data.installments && typeof data.installments === 'object') {
+                setInstallments(data.installments);
+            }
+            if (data.duplicate) setIsDuplicate(true);
+            if (data.duplicate_of) setDuplicateOf(data.duplicate_of);
+            if (data.image_hash) setImageHash(data.image_hash);
+
+            // Productos detectados: se muestran y se pueden corregir antes de guardar.
+            if (Array.isArray(data.items)) {
+                setItems(
+                    data.items
+                        .filter((item: any) => item && item.item_name)
+                        .map((item: any) => ({
+                            item_name: String(item.item_name),
+                            quantity: Number(item.quantity) || 1,
+                            unit_price: Number(item.unit_price) || 0,
+                            total_price: Number(item.total_price) || 0,
+                            category: item.category ?? null,
+                            category_id: item.category_id ?? null,
+                            confidence: item.confidence ?? null,
+                        }))
+                );
+            }
             
             if (data.category && categories.length > 0) {
                 const lowerCat = data.category.toLowerCase();
@@ -149,6 +187,27 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
             console.error('Error scanning receipt:', error);
         } finally {
             setIsScanning(false);
+        }
+    };
+
+    /**
+     * El usuario corrige la categoría de un producto → guardamos la regla aprendida
+     * (comercio + producto → categoría) para las próximas facturas.
+     * Best-effort: si falla, no molestamos al usuario.
+     */
+    const handleCategoryCorrected = async (item: OcrItem, categoryId: string) => {
+        const categoryName = categories.find((c) => c.id === categoryId)?.name;
+        const merchantKey = (merchant || description).trim();
+        if (!categoryName || !merchantKey || !item.item_name) return;
+
+        try {
+            await createCategoryRule.mutateAsync({
+                merchant: merchantKey,
+                raw_keyword: item.item_name,
+                category: categoryName,
+            });
+        } catch {
+            // Silencioso a propósito: la regla es una mejora, no un requisito.
         }
     };
 
@@ -188,13 +247,35 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
         setReceiptFile(null);
         setFilePreview(null);
         setReceiptUrl(null);
+        setItems([]);
+        setMerchant('');
+        setSource('manual');
+        setOcrConfidence({});
+        setIsDuplicate(false);
+        setDuplicateOf(null);
+        setInstallments(null);
+        setImageHash(null);
     };
+
+    const confidenceEntries = Object.entries(ocrConfidence).filter(
+        ([, value]) => typeof value === 'number' && !Number.isNaN(value)
+    );
 
     return (
         <Card variant="elevated" className="mt-8 border-indigo-500/5 overflow-hidden">
             <form action={createTransaction} className="space-y-10 p-2">
                 {/* Hidden input to send the URL to the server action */}
                 <input type="hidden" name="receipt_url" value={receiptUrl || ''} />
+                {/* Hidden inputs: datos del OCR que ahora se persisten */}
+                <input type="hidden" name="items" value={JSON.stringify(items)} />
+                <input type="hidden" name="merchant" value={merchant} />
+                <input type="hidden" name="source" value={source} />
+                <input type="hidden" name="image_hash" value={imageHash || ''} />
+                <input
+                    type="hidden"
+                    name="installments"
+                    value={installments ? JSON.stringify(installments) : ''}
+                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
                     {/* Receipt Upload (Moved to top) */}
@@ -264,6 +345,86 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             </div>
                         )}
                     </div>
+
+                    {/* Resumen del OCR: comercio, cuotas, confianza y productos */}
+                    {(items.length > 0 || merchant || installments || isDuplicate) && (
+                        <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="rounded-2xl border border-foreground/[0.06] bg-foreground/[0.02] p-4 sm:p-5">
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="h-11 w-11 shrink-0 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                                            <Store size={20} />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <Typography variant="small" className="text-muted-foreground">
+                                                Comercio detectado
+                                            </Typography>
+                                            <Typography variant="body" className="font-black text-foreground truncate">
+                                                {merchant || description}
+                                            </Typography>
+                                        </div>
+                                    </div>
+
+                                    {installments && (
+                                        <div className="rounded-xl border border-amber-100 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+                                            <Typography variant="small" className="text-amber-700 dark:text-amber-300">
+                                                Cuota {installments.current} de {installments.total}
+                                            </Typography>
+                                            <Typography variant="body" className="font-black text-amber-800 dark:text-amber-200">
+                                                Total de la compra: {formatCurrency(installments.purchase_total_amount ?? 0)}
+                                            </Typography>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {confidenceEntries.length > 0 && (
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <Typography variant="small" className="text-muted-foreground">
+                                            Confianza
+                                        </Typography>
+                                        {confidenceEntries.map(([field, value]) => {
+                                            const low = value < 0.6;
+                                            return (
+                                                <span
+                                                    key={field}
+                                                    className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                                                        low
+                                                            ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-500/20 text-amber-700 dark:text-amber-300'
+                                                            : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                                                    }`}
+                                                >
+                                                    {CONFIDENCE_LABELS[field] || field}: {Math.round(value * 100)}%
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {isDuplicate && (
+                                <div className="rounded-2xl border border-amber-500/20 bg-amber-50 dark:bg-amber-900/10 p-4 flex items-start gap-3">
+                                    <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                                    <div>
+                                        <Typography variant="body" className="font-bold text-amber-800 dark:text-amber-200">
+                                            Posible factura duplicada
+                                        </Typography>
+                                        <Typography variant="muted" className="text-amber-700/80 dark:text-amber-300/70">
+                                            {duplicateOf
+                                                ? `Coincide con el movimiento ${duplicateOf}. Revisa antes de guardar para no contarla dos veces.`
+                                                : 'Ya existe una factura muy similar registrada. Revisa antes de guardar para no contarla dos veces.'}
+                                        </Typography>
+                                    </div>
+                                </div>
+                            )}
+
+                            <OcrItemsEditor
+                                items={items}
+                                categories={categories}
+                                onChange={setItems}
+                                onCategoryCorrected={handleCategoryCorrected}
+                            />
+                        </div>
+                    )}
 
                     {/* Amount */}
                     <div className="md:col-span-1">
