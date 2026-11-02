@@ -69,6 +69,7 @@ model Category {
   children        Category[]       @relation("CategoryHierarchy")
   transactions    Transaction[]
   budgets         Budget[]
+  debts           Debt[]
   items           TransactionItem[]
   shopping_items  ShoppingItem[]
   savings_goals   SavingsGoal[]
