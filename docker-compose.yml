@@ -1,7 +1,32 @@
 # Docker Compose for NiddoFlow
 
+# ─────────────────────────────────────────────────────────────
+# DNS explicito para los containers
+#
+# Por defecto Docker usa el resolver embebido (127.0.0.11) y lo
+# encamina hacia los nameservers del HOST (/etc/resolv.conf). Si el
+# host usa systemd-resolved (nameserver 127.0.0.53), Docker lo
+# sustituye por la IP del gateway del bridge, donde NADIE escucha
+# -> los containers no resuelven nada y Supabase es inalcanzable:
+#
+#     getaddrinfo EAI_AGAIN rwpfhoykljsylesxxesh.supabase.co
+#     [Errno -3] Temporary failure in name resolution
+#
+# Fijar `dns:` hace que el resolver embebido reenvie SIEMPRE a
+# resolvers publicos alcanzables. Los nombres de servicio
+# (frontend, backend) los sigue resolviendo el DNS embebido.
+# ─────────────────────────────────────────────────────────────
+x-dns-resolvers: &dns-resolvers
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+  dns_opt:
+    - timeout:2
+    - attempts:3
+
 services:
   frontend:
+    <<: *dns-resolvers
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -28,6 +53,7 @@ services:
       - backend
 
   backend:
+    <<: *dns-resolvers
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -53,6 +79,7 @@ services:
       start_period: 40s
 
   nginx:
+    <<: *dns-resolvers
     image: nginx:alpine
     container_name: niddoflow-nginx
     restart: unless-stopped

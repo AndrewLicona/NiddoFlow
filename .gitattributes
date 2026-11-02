@@ -1,0 +1,20 @@
+# ─────────────────────────────────────────────────────────────
+# NiddoFlow — Normalizacion de fin de linea
+#
+# Los scripts de shell se ejecutan en el servidor Linux (Dockploy).
+# Con CRLF, bash falla con "$'\r': command not found" en cada linea.
+# Para esos ficheros se fuerzan LF en el repo Y en el working tree.
+# ─────────────────────────────────────────────────────────────
+*.sh text eol=lf
+Dockerfile text eol=lf
+
+# Resto de ficheros: se normalizan a LF en el repo (el repo siempre
+# guarda LF) y el working tree respeta el core.autocrlf local.
+*.ts text
+*.tsx text
+*.js text
+*.json text
+*.css text
+*.yml text
+*.yaml text
+*.md text

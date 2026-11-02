@@ -42,12 +42,27 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     // Protected routes logic
+    //
+    // Rutas publicas exactas: se comparan por pathname completo para no
+    // capturar rutas parecidas por prefijo.
+    const PUBLIC_EXACT_ROUTES = new Set([
+        '/',
+        '/forgot-password',
+        '/reset-password',
+    ])
+
+    // Rutas publicas por prefijo (y sus subrutas).
+    const PUBLIC_PREFIXES = [
+        '/login',
+        '/register',
+        '/auth', // incluye /auth/callback (intercambio del codigo OAuth)
+        '/onboarding', // onboarding handles its own internal auth check
+    ]
+
+    const { pathname } = request.nextUrl
     const isPublicRoute =
-        request.nextUrl.pathname === '/' ||
-        request.nextUrl.pathname.startsWith('/login') ||
-        request.nextUrl.pathname.startsWith('/register') ||
-        request.nextUrl.pathname.startsWith('/auth') ||
-        request.nextUrl.pathname.startsWith('/onboarding') // onboarding handles its own internal auth check
+        PUBLIC_EXACT_ROUTES.has(pathname) ||
+        PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
     if (!user && !isPublicRoute) {
         const url = request.nextUrl.clone()

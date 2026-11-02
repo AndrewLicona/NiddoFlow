@@ -124,12 +124,58 @@ variable nueva), en Dockploy: **Deploy → Rebuild**.
 
 | Síntoma | Causa probable | Solución |
 |---------|----------------|----------|
-| Login con Google da "fetch failed" | El contenedor no resuelve DNS hacia Supabase | Verifica que el servicio backend tenga DNS funcional; en Dockploy configura DNS si hace falta |
+| Login con Google da "fetch failed" | Los containers no resuelven DNS hacia Supabase (`EAI_AGAIN` / `[Errno -3] Temporary failure in name resolution`) | El `docker-compose.yml` ya fija `dns: 1.1.1.1 / 8.8.8.8`. Recrea los containers: `docker compose -p niddo-stack-ipomtt --env-file .env -f ./docker-compose.yml up -d --force-recreate --remove-orphans`. Si sigue igual, corre `sudo bash scripts/fix_docker_networking.sh` |
+| `Manifest: Line: 1, column: 1, Syntax error` | `/manifest.json` devuelve una redirección a `/login` en vez de JSON | Verifica que `manifest.json` siga fuera del `matcher` de `frontend/src/middleware.ts` |
+| `SW registration failed: ... behind a redirect` | `/sw.js` devuelve una redirección a `/login` | Mismo origen que el anterior: `sw.js` debe quedar fuera del `matcher` |
+| `Invalid Server Actions request` | `x-forwarded-host` no coincide con `origin` (el puerto se pierde con `$host`) | nginx debe reenviar `Host`/`X-Forwarded-Host` con `$http_host` (puerto incluido) |
 | `504` en `/api/*` | nginx no alcanza al backend | Revisa la red del compose: frontend y backend deben compartir red |
 | El OCR responde vacío | `GEMINI_API_KEY` mal pegada o con espacios | Verifica la variable en Dockploy (sin comillas, sin espacios) |
 | Cambió el dominio y no se refleja | `NEXT_PUBLIC_*` horneadas en build | Edita el compose + Rebuild |
 | `401` en la API | `SUPABASE_KEY` incorrecta o truncada | Reemplázala por la service role key completa |
 | Puerto 3100 ocupado | Otro servicio usa ese puerto | Cambia el mapeo en el compose y actualiza el dominio en Dockploy |
+
+---
+
+## DNS en los containers
+
+Los containers heredan el resolver del host por defecto. Si el host usa
+`systemd-resolved` (`nameserver 127.0.0.53`), Docker sustituye ese destino
+por la IP del gateway del bridge, donde **nadie escucha**, y el DNS externo
+deja de funcionar por completo:
+
+```
+getaddrinfo EAI_AGAIN rwpfhoykljsylesxxesh.supabase.co
+[Errno -3] Temporary failure in name resolution
+```
+
+El `docker-compose.yml` lo evita fijando resolvers públicos de forma
+explícita:
+
+```yaml
+x-dns-resolvers: &dns-resolvers
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+  dns_opt:
+    - timeout:2
+    - attempts:3
+```
+
+Los nombres de servicio (`frontend`, `backend`) los sigue resolviendo el DNS
+embebido de Docker, así que el compose no se rompe.
+
+> ⚠️ Si cambias el compose, **recrea** los containers (`--force-recreate`).
+> Un `docker compose restart` no aplica cambios de configuración de red.
+
+Para diagnosticar en el servidor:
+
+```bash
+sudo bash scripts/fix_docker_networking.sh
+```
+
+El script comprueba el firewall (UFW `DEFAULT_FORWARD_POLICY` y la chain
+`DOCKER-USER`), diagnostica el DNS dentro de los containers y verifica que
+el login con Google tiene salida a Supabase.
 
 ---
 

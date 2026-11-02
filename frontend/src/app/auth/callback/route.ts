@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { describeAuthNetworkError } from '@/utils/supabase/errors'
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
@@ -24,7 +25,9 @@ export async function GET(request: Request) {
 
         if (error) {
             console.error('Auth code exchange error:', error.message)
-            return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
+            return NextResponse.redirect(
+                `${origin}/login?error=${encodeURIComponent(describeAuthNetworkError(error))}`
+            )
         }
 
         console.log('Auth successful!')

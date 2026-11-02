@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
+import { describeAuthNetworkError } from '@/utils/supabase/errors'
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -16,7 +17,7 @@ export async function login(formData: FormData) {
     })
 
     if (error) {
-        redirect(`/login?error=${encodeURIComponent(error.message)}`)
+        redirect(`/login?error=${encodeURIComponent(describeAuthNetworkError(error))}`)
     }
 
     revalidatePath('/', 'layout')
@@ -41,7 +42,7 @@ export async function signup(formData: FormData) {
     })
 
     if (error) {
-        redirect(`/register?error=${encodeURIComponent(error.message)}`)
+        redirect(`/register?error=${encodeURIComponent(describeAuthNetworkError(error))}`)
     }
 
     revalidatePath('/', 'layout')
@@ -78,7 +79,7 @@ export async function loginWithGoogle() {
     })
 
     if (error) {
-        redirect(`/login?error=${encodeURIComponent(error.message)}`)
+        redirect(`/login?error=${encodeURIComponent(describeAuthNetworkError(error))}`)
     }
 
     if (data.url) {
