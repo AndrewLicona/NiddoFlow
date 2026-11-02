@@ -7,7 +7,7 @@ pydantic-settings
 email-validator
 python-multipart
 PyMuPDF
-prisma
+prisma==0.15.0
 pytesseract
 Pillow
 google-genai
