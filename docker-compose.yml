@@ -8,8 +8,8 @@ services:
       args:
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_API_URL=https://niddoflow.miserverlab.xyz/api
-        - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
     container_name: niddoflow-frontend
     restart: unless-stopped
     ports:
@@ -17,8 +17,8 @@ services:
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - NEXT_PUBLIC_API_URL=https://niddoflow.miserverlab.xyz/api
-      - NEXT_PUBLIC_BASE_URL=https://niddoflow.miserverlab.xyz
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
       - INTERNAL_API_URL=http://backend:8100
       - PORT=3030
       - HOSTNAME=0.0.0.0
@@ -39,9 +39,9 @@ services:
       - PORT=8100
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - CORS_ORIGINS=https://niddoflow.miserverlab.xyz
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OCR_PROVIDER=gemini
+      - OCR_PROVIDER=${OCR_PROVIDER:-gemini}
       - DATABASE_URL=${DATABASE_URL}
     networks:
       - niddoflow-network
