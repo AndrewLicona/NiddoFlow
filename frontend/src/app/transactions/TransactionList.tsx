@@ -27,6 +27,7 @@ import {
     CreditCard,
     ShoppingBasket
 } from 'lucide-react';
+import { selectStyles } from '@/components/ui/molecules/SelectField';
 
 import { useTransactions } from '@/hooks/useTransactions';
 import { useItemCategories } from '@/hooks/useItemCategories';
@@ -779,19 +780,26 @@ function TransactionItemsPanel({
                             )}
                         </div>
 
-                        <select
-                            value={currentCategory(item)}
-                            onChange={(e) => handleChange(item, e.target.value)}
-                            className="rounded-lg border border-foreground/10 bg-background px-2 py-1 text-[11px] max-w-[150px]"
-                            aria-label={`Categoría de ${item.item_name}`}
-                        >
-                            <option value="">Sin categoría</option>
-                            {categories
-                                .filter((c) => c.type === "expense")
-                                .map((c) => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                        </select>
+                        <div className="relative shrink-0">
+                            <select
+                                value={currentCategory(item)}
+                                onChange={(e) => handleChange(item, e.target.value)}
+                                className={`${selectStyles} max-w-[150px] py-1 pl-2 pr-7 text-[11px]`}
+                                aria-label={`Categoría de ${item.item_name}`}
+                            >
+                                <option value="">Sin categoría</option>
+                                {categories
+                                    .filter((c) => c.type === "expense")
+                                    .map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                            </select>
+                            <ChevronDown
+                                size={12}
+                                aria-hidden="true"
+                                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                            />
+                        </div>
 
                         <div className="text-right whitespace-nowrap">
                             <div className="text-sm font-bold">{formatCurrency(item.total_price)}</div>

@@ -12,6 +12,7 @@ import OcrItemsEditor, { type OcrItem } from '@/components/ui/molecules/OcrItems
 import { useCategories } from '@/hooks/useCategories';
 import { useOcrExtract } from '@/hooks/useOcr';
 import { formatCurrency } from '@/utils/format';
+import { normalizeQuantity, roundMoney } from '@/utils/numbers';
 import { Save, X, Plus, Paperclip, Loader2, Trash2, Store, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -155,9 +156,9 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                         .filter((item: any) => item && item.item_name)
                         .map((item: any) => ({
                             item_name: String(item.item_name),
-                            quantity: Number(item.quantity) || 1,
-                            unit_price: Number(item.unit_price) || 0,
-                            total_price: Number(item.total_price) || 0,
+                            quantity: normalizeQuantity(item.quantity, 1),
+                            unit_price: roundMoney(Number(item.unit_price) || 0),
+                            total_price: roundMoney(Number(item.total_price) || 0),
                             category: item.category ?? null,
                             category_id: item.category_id ?? null,
                             confidence: item.confidence ?? null,

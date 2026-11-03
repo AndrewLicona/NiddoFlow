@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
+import { SelectField } from '@/components/ui/molecules/SelectField';
 import { TrendingUp, AlertCircle, Info, Printer, Calendar, Share2, Filter, RotateCcw } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import ExpenseCategoryDonutChart from '@/app/dashboard/charts/ExpenseCategoryDonutChart';
@@ -424,42 +425,33 @@ export default function ReportsClient({ transactions }: Props) {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <label className="block">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Categoría</span>
-                            <select
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                            >
-                                <option value="all">Todas las categorías</option>
-                                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </label>
+                        <SelectField
+                            label="Categoría"
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                        >
+                            <option value="all">Todas las categorías</option>
+                            {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </SelectField>
 
-                        <label className="block">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Integrante</span>
-                            <select
-                                value={memberFilter}
-                                onChange={(e) => setMemberFilter(e.target.value)}
-                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                            >
-                                <option value="all">Todo el hogar</option>
-                                {availableMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                            </select>
-                        </label>
+                        <SelectField
+                            label="Integrante"
+                            value={memberFilter}
+                            onChange={(e) => setMemberFilter(e.target.value)}
+                        >
+                            <option value="all">Todo el hogar</option>
+                            {availableMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </SelectField>
 
-                        <label className="block">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipo</span>
-                            <select
-                                value={typeFilter}
-                                onChange={(e) => setTypeFilter(e.target.value as 'all' | 'income' | 'expense')}
-                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                            >
-                                <option value="all">Ingresos y gastos</option>
-                                <option value="expense">Solo gastos</option>
-                                <option value="income">Solo ingresos</option>
-                            </select>
-                        </label>
+                        <SelectField
+                            label="Tipo"
+                            value={typeFilter}
+                            onChange={(e) => setTypeFilter(e.target.value as 'all' | 'income' | 'expense')}
+                        >
+                            <option value="all">Ingresos y gastos</option>
+                            <option value="expense">Solo gastos</option>
+                            <option value="income">Solo ingresos</option>
+                        </SelectField>
 
                         <label className="block">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Monto mínimo</span>

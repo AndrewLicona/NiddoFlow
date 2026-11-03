@@ -12,8 +12,9 @@ import type { Category, CategoryWarnings } from '@/lib/api/categories.api'
 import { AffectedRecordsList, ImpactSummaryTiles } from './CategoryImpactDetails'
 import {
     Home, Link as LinkIcon, Copy, Check, Users, LogOut, AlertTriangle, Palette, Moon, Sun, Monitor,
-    Leaf, Droplets, Sunset, Plus, Pencil, Trash2, Shapes, Tags, Loader2, ArrowRightLeft
+    Leaf, Droplets, Sunset, Plus, Pencil, Trash2, Shapes, Tags, Loader2, ArrowRightLeft, ChevronDown
 } from 'lucide-react'
+import { selectStyles } from '@/components/ui/molecules/SelectField'
 import type { LucideIcon } from 'lucide-react'
 import {
     UtensilsCrossed, Car, House, ShoppingCart, HeartPulse, Film, Dumbbell, GraduationCap, Scissors,
@@ -510,17 +511,24 @@ function CategoriesPanel() {
 
                                 {targetCategories.length > 0 ? (
                                     <div className="flex flex-col sm:flex-row gap-2">
-                                        <select
-                                            value={targetCategoryId}
-                                            onChange={(e) => setTargetCategoryId(e.target.value)}
-                                            className="flex-1 rounded-xl border border-foreground/10 bg-background px-3 py-2.5 text-sm text-foreground"
-                                            aria-label="Categoría de destino"
-                                        >
-                                            <option value="">Elige una categoría...</option>
-                                            {targetCategories.map((c) => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </select>
+                                        <div className="flex-1 min-w-0 relative">
+                                            <select
+                                                value={targetCategoryId}
+                                                onChange={(e) => setTargetCategoryId(e.target.value)}
+                                                className={`${selectStyles} w-full py-2.5`}
+                                                aria-label="Categoría de destino"
+                                            >
+                                                <option value="">Elige una categoría...</option>
+                                                {targetCategories.map((c) => (
+                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown
+                                                size={16}
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                            />
+                                        </div>
                                         <Button
                                             variant="primary"
                                             onClick={handleReassign}

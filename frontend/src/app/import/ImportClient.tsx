@@ -11,12 +11,14 @@ import {
     ShieldCheck,
     Loader2,
     RotateCcw,
+    ChevronDown,
 } from "lucide-react";
 import { useImport } from "@/hooks/useImport";
 import { ImportRow } from "@/lib/api/import.api";
 import { Button } from "@/components/ui/atoms/Button";
 import { Card } from "@/components/ui/molecules/Card";
 import { Typography } from "@/components/ui/atoms/Typography";
+import { SelectField, selectStyles } from "@/components/ui/molecules/SelectField";
 import { formatCurrency } from "@/utils/format";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -200,32 +202,26 @@ export default function ImportClient() {
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <label className="block">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Cuenta por defecto</span>
-                                <select
-                                    value={defaultAccountId}
-                                    onChange={(e) => setDefaultAccountId(e.target.value)}
-                                    className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="">Sin cuenta por defecto</option>
-                                    {preview.accounts.map((a) => (
-                                        <option key={a.id} value={a.id}>{a.name}</option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className="block">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Categoría por defecto</span>
-                                <select
-                                    value={defaultCategoryId}
-                                    onChange={(e) => setDefaultCategoryId(e.target.value)}
-                                    className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="">Sin categoría</option>
-                                    {preview.categories.filter((c) => c.type === "expense").map((c) => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
-                            </label>
+                            <SelectField
+                                label="Cuenta por defecto"
+                                value={defaultAccountId}
+                                onChange={(e) => setDefaultAccountId(e.target.value)}
+                            >
+                                <option value="">Sin cuenta por defecto</option>
+                                {preview.accounts.map((a) => (
+                                    <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                            </SelectField>
+                            <SelectField
+                                label="Categoría por defecto"
+                                value={defaultCategoryId}
+                                onChange={(e) => setDefaultCategoryId(e.target.value)}
+                            >
+                                <option value="">Sin categoría</option>
+                                {preview.categories.filter((c) => c.type === "expense").map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </SelectField>
                         </div>
                     </div>
 
@@ -313,20 +309,27 @@ function ImportRowView({
                 {row.amount !== null ? formatCurrency(Math.abs(row.amount)) : "—"}
             </td>
             <td className="p-3">
-                <select
-                    value={row.category_id || ""}
-                    disabled={!editable}
-                    onChange={(e) => onChange({ category_id: e.target.value || null })}
-                    className="rounded-lg border border-foreground/10 bg-background px-2 py-1 text-xs max-w-[150px]"
-                    aria-label="Categoría"
-                >
-                    <option value="">Sin categoría</option>
-                    {categories
-                        .filter((c) => c.type === (row.type === "income" ? "income" : "expense"))
-                        .map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                </select>
+                <div className="relative">
+                    <select
+                        value={row.category_id || ""}
+                        disabled={!editable}
+                        onChange={(e) => onChange({ category_id: e.target.value || null })}
+                        className={`${selectStyles} max-w-[150px] py-1 pl-2 pr-7 text-xs`}
+                        aria-label="Categoría"
+                    >
+                        <option value="">Sin categoría</option>
+                        {categories
+                            .filter((c) => c.type === (row.type === "income" ? "income" : "expense"))
+                            .map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                    </select>
+                    <ChevronDown
+                        size={12}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    />
+                </div>
             </td>
             <td className="p-3">
                 <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>

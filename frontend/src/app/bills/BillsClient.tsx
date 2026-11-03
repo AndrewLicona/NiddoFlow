@@ -18,6 +18,7 @@ import { formatCurrency } from "@/utils/format";
 import { Button } from "@/components/ui/atoms/Button";
 import { Card } from "@/components/ui/molecules/Card";
 import { Typography } from "@/components/ui/atoms/Typography";
+import { SelectField } from "@/components/ui/molecules/SelectField";
 
 const CADENCE_LABELS: Record<string, string> = {
     weekly: "Semanal",
@@ -145,18 +146,15 @@ export default function BillsClient() {
                                     className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
                                 />
                             </label>
-                            <label className="block">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Frecuencia</span>
-                                <select
-                                    value={cadence}
-                                    onChange={(e) => setCadence(e.target.value)}
-                                    className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
-                                >
-                                    {Object.entries(CADENCE_LABELS).map(([value, label]) => (
-                                        <option key={value} value={value}>{label}</option>
-                                    ))}
-                                </select>
-                            </label>
+                            <SelectField
+                                label="Frecuencia"
+                                value={cadence}
+                                onChange={(e) => setCadence(e.target.value)}
+                            >
+                                {Object.entries(CADENCE_LABELS).map(([value, label]) => (
+                                    <option key={value} value={value}>{label}</option>
+                                ))}
+                            </SelectField>
                             <label className="block">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Día de cobro</span>
                                 <input
@@ -168,19 +166,17 @@ export default function BillsClient() {
                                     className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
                                 />
                             </label>
-                            <label className="block sm:col-span-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categoría</span>
-                                <select
-                                    value={categoryId}
-                                    onChange={(e) => setCategoryId(e.target.value)}
-                                    className="mt-1 w-full rounded-xl border border-foreground/10 bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="">Sin categoría</option>
-                                    {expenseCategories.map((c: any) => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
-                            </label>
+                            <SelectField
+                                label="Categoría"
+                                value={categoryId}
+                                onChange={(e) => setCategoryId(e.target.value)}
+                                wrapperClassName="sm:col-span-2"
+                            >
+                                <option value="">Sin categoría</option>
+                                {expenseCategories.map((c: any) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </SelectField>
                         </div>
 
                         <div className="flex justify-end gap-3">

@@ -15,10 +15,13 @@ import {
     AlertCircle,
     Loader2,
     Save,
-    ArrowLeft
+    ArrowLeft,
+    ChevronDown
 } from 'lucide-react';
 import Link from 'next/link';
+import { selectStyles } from '@/components/ui/molecules/SelectField';
 import { formatCurrency } from '@/utils/format';
+import { normalizeQuantity, roundMoney } from '@/utils/numbers';
 import { useOcrExtractBulk } from '@/hooks/useOcr';
 
 interface Category {
@@ -120,9 +123,9 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                             .filter((item: any) => item && item.item_name)
                             .map((item: any) => ({
                                 item_name: String(item.item_name),
-                                quantity: Number(item.quantity) || 1,
-                                unit_price: Number(item.unit_price) || 0,
-                                total_price: Number(item.total_price) || 0,
+                                quantity: normalizeQuantity(item.quantity, 1),
+                                unit_price: roundMoney(Number(item.unit_price) || 0),
+                                total_price: roundMoney(Number(item.total_price) || 0),
                                 category: item.category ?? null,
                                 category_id: item.category_id ?? null,
                                 confidence: item.confidence ?? null,
@@ -357,15 +360,22 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                                     </div>
                                     <div className="col-span-1 md:col-span-1">
                                         <Typography variant="small" className="font-bold uppercase tracking-widest text-[10px] text-foreground/30 mb-1 block">Tipo</Typography>
-                                        <select 
-                                            value={res.nature || 'Gasto'} 
-                                            onChange={(e) => updateResult(res.id_temp, 'nature', e.target.value)}
-                                            className="w-full bg-zinc-100 dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-white/10 rounded-xl px-2 py-2 focus:ring-2 focus:ring-blue-500 text-[11px] font-bold text-foreground/80 dark:text-foreground/90 appearance-none shadow-sm transition-all hover:bg-white dark:hover:bg-zinc-900"
-                                        >
-                                            <option value="Gasto">Gasto</option>
-                                            <option value="Ingreso">Ingreso</option>
-                                            <option value="Transferencia">Trans.</option>
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={res.nature || 'Gasto'}
+                                                onChange={(e) => updateResult(res.id_temp, 'nature', e.target.value)}
+                                                className={`${selectStyles} w-full border-2 py-2 pl-2 pr-8 text-[11px] font-bold`}
+                                            >
+                                                <option value="Gasto">Gasto</option>
+                                                <option value="Ingreso">Ingreso</option>
+                                                <option value="Transferencia">Trans.</option>
+                                            </select>
+                                            <ChevronDown
+                                                size={14}
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="col-span-1 md:col-span-2">
                                         <Typography variant="small" className="font-bold uppercase tracking-widest text-[10px] text-foreground/30 mb-1 block">Fecha</Typography>
@@ -378,28 +388,42 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                                     </div>
                                     <div className="col-span-1 md:col-span-2">
                                         <Typography variant="small" className="font-bold uppercase tracking-widest text-[10px] text-foreground/30 mb-1 block">Cuenta</Typography>
-                                        <select 
-                                            value={res.account_id} 
-                                            onChange={(e) => updateResult(res.id_temp, 'account_id', e.target.value)}
-                                            className="w-full bg-zinc-100 dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 text-sm font-bold text-foreground/80 dark:text-foreground/90 appearance-none shadow-sm transition-all hover:bg-white dark:hover:bg-zinc-900"
-                                        >
-                                            <option value="">Seleccionar...</option>
-                                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={res.account_id}
+                                                onChange={(e) => updateResult(res.id_temp, 'account_id', e.target.value)}
+                                                className={`${selectStyles} w-full border-2 py-2 font-bold`}
+                                            >
+                                                <option value="">Seleccionar...</option>
+                                                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                            </select>
+                                            <ChevronDown
+                                                size={16}
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="col-span-1 md:col-span-2">
                                         <Typography variant="small" className="font-bold uppercase tracking-widest text-[10px] text-foreground/30 mb-1 block">Categoría</Typography>
-                                        <select 
-                                            value={res.category_id} 
-                                            onChange={(e) => updateResult(res.id_temp, 'category_id', e.target.value)}
-                                            className="w-full bg-zinc-100 dark:bg-zinc-900/50 border-2 border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 text-sm font-bold text-foreground/80 dark:text-foreground/90 appearance-none shadow-sm transition-all hover:bg-white dark:hover:bg-zinc-900"
-                                        >
-                                            <option value="">Categoría...</option>
-                                            {categories
-                                                .filter(c => c.type === (res.nature === 'Ingreso' ? 'income' : 'expense'))
-                                                .map(c => <option key={c.id} value={c.id}>{c.name}</option>)
-                                            }
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={res.category_id}
+                                                onChange={(e) => updateResult(res.id_temp, 'category_id', e.target.value)}
+                                                className={`${selectStyles} w-full border-2 py-2 font-bold`}
+                                            >
+                                                <option value="">Categoría...</option>
+                                                {categories
+                                                    .filter(c => c.type === (res.nature === 'Ingreso' ? 'income' : 'expense'))
+                                                    .map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                                                }
+                                            </select>
+                                            <ChevronDown
+                                                size={16}
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="col-span-1 md:col-span-1 flex justify-end">
                                         <Button 

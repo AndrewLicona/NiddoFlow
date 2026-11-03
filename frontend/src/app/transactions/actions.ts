@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { normalizeQuantity, roundMoney, toNumber } from '@/utils/numbers'
 
 const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000'
 
@@ -29,7 +30,13 @@ function parseJsonField<T>(value: FormDataEntryValue | null): T | null {
     }
 }
 
-/** Normaliza los productos detectados por el OCR al payload que espera el backend. */
+/**
+ * Normaliza los productos detectados por el OCR al payload que espera el backend.
+ *
+ * Cantidades con 3 decimales (1.234 L) y dinero con 2, que es lo que
+ * aceptan los campos del formulario. El backend guarda Float, asi que
+ * aqui solo se evita mandar valores que UI no puede representar.
+ */
 function normalizeItems(raw: unknown): TransactionItem[] {
     if (!Array.isArray(raw)) return []
 
@@ -37,9 +44,9 @@ function normalizeItems(raw: unknown): TransactionItem[] {
         .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
         .map((item) => ({
             item_name: String(item.item_name ?? '').trim(),
-            quantity: Number(item.quantity) || 1,
-            unit_price: Number(item.unit_price) || 0,
-            total_price: Number(item.total_price) || 0,
+            quantity: normalizeQuantity(item.quantity, 1),
+            unit_price: roundMoney(toNumber(item.unit_price)),
+            total_price: roundMoney(toNumber(item.total_price)),
             category: (item.category as string | null) ?? null,
             category_id: (item.category_id as string | null) ?? null,
             confidence: item.confidence === undefined || item.confidence === null

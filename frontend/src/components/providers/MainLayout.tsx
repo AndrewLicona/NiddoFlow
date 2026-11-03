@@ -32,7 +32,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const hideNav = isAuthPage || (isRoot && (loading || !session));
 
     return (
-        <div className={`antialiased min-h-screen transition-all duration-300 ${!hideNav ? 'mb-20 md:mb-0 md:pl-24' : ''}`}>
+        <div className={`antialiased min-h-screen transition-all duration-300 ${!hideNav ? 'mb-20 md:mb-0 md:pl-28' : ''}`}>
             {!hideNav && <Navigation />}
             {!hideNav && <NiddoAIChat />}
             <div className={`w-full ${!hideNav ? 'max-w-7xl mx-auto' : ''}`}>
