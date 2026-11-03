@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────
-# NiddoFlow — Fix de networking Docker + UFW en servidores con Dockploy
+# =============================================================
+# NiddoFlow -- Fix de networking Docker + UFW en servidores con Dockploy
 #
 # Diagnostica y repara:
 #   1. UFW con DEFAULT_FORWARD_POLICY="DROP" rompe el trafico
@@ -12,7 +12,12 @@
 #      del gateway y TODO el DNS externo falla:
 #          getaddrinfo EAI_AGAIN rwpfhoykljsylesxxesh.supabase.co
 #          [Errno -3] Temporary failure in name resolution
-#   4. Reporta el ingress de Cloudflare Tunnel para validar el dominio
+#   4. DNS roto en el HOST: el daemon de Docker descarga las imagenes
+#      base usando el resolver del host, no el configurado en el
+#      compose. Si el host usa systemd-resolved y su upstream no
+#      responde, el build falla:
+#          lookup registry-1.docker.io on 127.0.0.53:53: i/o timeout
+#   5. Reporta el ingress de Cloudflare Tunnel para validar el dominio
 #
 # SEGURO: NO toca la cadena nat/POSTROUTING. Nunca aplica MASQUERADE global.
 #
@@ -22,7 +27,9 @@
 #   APPLY_DAEMON_DNS=1   Ademas aplica un dns global en
 #                         /etc/docker/daemon.json y reinicia Docker
 #                         (hay unos segundos de downtime).
-# ─────────────────────────────────────────────────────────────
+#   FIX_HOST_DNS=1       Fuerza la reparacion del resolver del host
+#                         (systemd-resolved + /etc/resolv.conf).
+# =============================================================
 
 set -uo pipefail
 
@@ -34,24 +41,24 @@ BACKEND_PORT='8100'
 FRONTEND_PORT='3030'
 NGINX_PORT='3100'
 SUPABASE_HOST='rwpfhoykljsylesxxesh.supabase.co'
-PUBLIC_DNS='1.1.1.1 8.8.8.8'
+DOCKER_REGISTRY_HOST='registry-1.docker.io'
 
-hr() { printf '%s\n' "────────────────────────────────────────────────────────────"; }
+hr() { printf '%s\n' "------------------------------------------------------------"; }
 info() { printf "${CYAN}%s${NC}\n" "$*"; }
-ok()   { printf "${GREEN}✔ %s${NC}\n" "$*"; }
-warn() { printf "${YELLOW}! %s${NC}\n" "$*"; }
-err()  { printf "${RED}✘ %s${NC}\n" "$*"; }
+ok()   { printf "${GREEN}[OK] %s${NC}\n" "$*"; }
+warn() { printf "${YELLOW}[!] %s${NC}\n" "$*"; }
+err()  { printf "${RED}[XX] %s${NC}\n" "$*"; }
 
 [ "$(id -u)" -ne 0 ] && { err "Ejecuta con sudo"; exit 1; }
 
 echo
 hr
-echo "  NiddoFlow · Fix networking Docker + UFW"
+echo "  NiddoFlow - Fix networking Docker + UFW"
 hr
 echo
 
-# ─────────────────────────────────────────────────────────────
-info "1/7  Estado actual del firewall"
+# =============================================================
+info "1/8  Estado actual del firewall"
 hr
 printf "  DEFAULT_FORWARD_POLICY : "
 grep -E '^DEFAULT_FORWARD_POLICY' /etc/default/ufw 2>/dev/null | cut -d'"' -f2 || echo "(no encontrado)"
@@ -67,8 +74,8 @@ sudo iptables -L FORWARD -n -v --line-numbers 2>/dev/null | head -6 | sed 's/^/ 
 echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "2/7  Aplicando reglas en DOCKER-USER"
+# =============================================================
+info "2/8  Aplicando reglas en DOCKER-USER"
 hr
 
 # Idempotente: no duplicar si ya existe una regla equivalente
@@ -94,8 +101,8 @@ fi
 echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "3/7  Ajustando DEFAULT_FORWARD_POLICY de UFW"
+# =============================================================
+info "3/8  Ajustando DEFAULT_FORWARD_POLICY de UFW"
 hr
 if grep -qE '^DEFAULT_FORWARD_POLICY="ACCEPT"' /etc/default/ufw 2>/dev/null; then
   ok "Ya estaba en ACCEPT"
@@ -113,8 +120,8 @@ fi
 echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "4/7  Diagnostico de DNS en los containers"
+# =============================================================
+info "4/8  Diagnostico de DNS en los containers"
 hr
 
 echo "  /etc/resolv.conf del HOST:"
@@ -177,7 +184,80 @@ if [ "$DNS_STATE" = 'broken' ]; then
   echo "         APPLY_DAEMON_DNS=1 sudo bash scripts/fix_docker_networking.sh"
 fi
 
-# ─────────────────────────────────────────────────────────────
+echo
+hr
+
+# =============================================================
+# El BUILD de las imagenes lo hace el daemon de Docker, que usa el
+# resolver del HOST (no el de los containers). Si el host usa
+# systemd-resolved y su upstream no responde, el build falla con:
+#   lookup registry-1.docker.io on 127.0.0.53:53: i/o timeout
+# y no se puede ni descargar la imagen base ni desplegar.
+info "5/8  Resolver DNS del host (bloquea el build de Docker)"
+hr
+
+echo "  El daemon de Docker puede descargar imagenes base?:"
+if getent hosts "$DOCKER_REGISTRY_HOST" >/dev/null 2>&1; then
+  ok "host -> resuelve $DOCKER_REGISTRY_HOST (el build puede descargar imagenes)"
+else
+  err "host -> NO resuelve $DOCKER_REGISTRY_HOST -> EL BUILD DE DOCKER VA A FALLAR"
+  HOST_DNS_BROKEN=1
+fi
+
+if [ "${HOST_DNS_BROKEN:-0}" = '1' ] || [ "${FIX_HOST_DNS:-0}" = '1' ]; then
+  echo
+  info "  Reparando el resolver del host"
+
+  # 1) Reiniciar systemd-resolved (a veces se queda colgado).
+  if systemctl restart systemd-resolved 2>/dev/null; then
+    ok "systemd-resolved reiniciado"
+  fi
+  sleep 2
+
+  if ! getent hosts "$DOCKER_REGISTRY_HOST" >/dev/null 2>&1; then
+    # 2) Fijar resolvers publicos en systemd-resolved (persistente).
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat > /etc/systemd/resolved.conf.d/99-niddoflow-dns.conf <<'RESOLVED'
+[Resolve]
+DNS=1.1.1.1
+8.8.8.8
+FallbackDNS=
+DNSStubListener=yes
+RESOLVED
+    systemctl restart systemd-resolved 2>/dev/null
+    sleep 2
+  fi
+
+  if ! getent hosts "$DOCKER_REGISTRY_HOST" >/dev/null 2>&1; then
+    # 3) Ultimo recurso: escribir /etc/resolv.conf directamente.
+    warn "systemd-resolved sigue sin responder; escribiendo /etc/resolv.conf"
+    cp /etc/resolv.conf "/etc/resolv.conf.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions timeout:2 attempts:3\n' > /etc/resolv.conf
+    sleep 1
+  fi
+
+  if getent hosts "$DOCKER_REGISTRY_HOST" >/dev/null 2>&1; then
+    ok "el host vuelve a resolver $DOCKER_REGISTRY_HOST"
+    echo
+    echo "  Reintenta el deploy desde Dokploy."
+  else
+    err "el host SIGUE sin resolver. Revisa la salida a internet del VPS."
+    echo "       curl -sI https://$DOCKER_REGISTRY_HOST/v2/ | head -3"
+  fi
+  echo
+fi
+
+if [ "${HOST_DNS_BROKEN:-0}" = '1' ]; then
+  echo
+  warn "El build de Docker usa el resolver del HOST (no el de los containers)."
+  warn "Si el deploy falla con 'lookup registry-1.docker.io ... i/o timeout',"
+  warn "hay que arreglar el DNS del host (arriba ya se intento) y reintentar."
+  echo
+fi
+
+hr
+
+# =============================================================
 # Fix global opcional del daemon de Docker.
 if [ "${APPLY_DAEMON_DNS:-0}" = '1' ]; then
   echo
@@ -225,8 +305,8 @@ fi
 echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "5/7  Persistiendo reglas de iptables"
+# =============================================================
+info "6/8  Persistiendo reglas de iptables"
 hr
 if command -v netfilter-persistent >/dev/null 2>&1; then
   sudo netfilter-persistent save >/dev/null 2>&1 \
@@ -242,8 +322,8 @@ fi
 echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "6/7  Verificacion de conectividad"
+# =============================================================
+info "7/8  Verificacion de conectividad"
 hr
 
 check_local() {
@@ -293,10 +373,18 @@ for c in niddoflow-frontend niddoflow-backend; do
 done
 
 echo
+echo "  El daemon de Docker puede descargar imagenes base?:"
+if getent hosts "$DOCKER_REGISTRY_HOST" >/dev/null 2>&1; then
+  ok "host -> resuelve $DOCKER_REGISTRY_HOST"
+else
+  err "host -> NO resuelve $DOCKER_REGISTRY_HOST (el deploy fallara en el build)"
+fi
+
+echo
 hr
 
-# ─────────────────────────────────────────────────────────────
-info "7/7  Cloudflare Tunnel (ingress)"
+# =============================================================
+info "8/8  Cloudflare Tunnel (ingress)"
 hr
 
 TUNNEL_UNIT=$(systemctl list-units --type=service --all --no-legend 2>/dev/null \
@@ -310,7 +398,7 @@ if [ -n "$TUNNEL_UNIT" ]; then
   echo
   for cfg in /etc/cloudflared/config.yml /etc/cloudflared/config.yaml; do
     if [ -f "$cfg" ]; then
-      echo "  ── $cfg ──"
+      echo "  -- $cfg --"
       cat "$cfg" | sed 's/^/    /'
       echo
       echo "  >>> Verifica que el hostname de NiddoFlow apunte al puerto $NGINX_PORT <<<"
@@ -335,4 +423,8 @@ echo "    -> luego:  sudo systemctl restart ${TUNNEL_UNIT:-cloudflared}"
 echo
 echo "  Si el login con Google falla, mira los logs del frontend:"
 echo "    docker logs --tail 30 niddoflow-frontend"
+echo
+echo "  Si el deploy falla al descargar imagenes base:"
+echo "    -> es el DNS del HOST (no el de los containers). Revisa el"
+echo "       paso 5/8 de este script y reintenta el deploy."
 echo
