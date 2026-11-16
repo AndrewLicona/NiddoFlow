@@ -264,7 +264,9 @@ class TransactionsService(BaseService):
         updated_tx = res.data[0]
 
         if items is not None:
-            await self.repository.delete_transaction_items(transaction_id, family_id)
+            deleted = await self.repository.delete_transaction_items(transaction_id, family_id)
+            if deleted is False:
+                raise ValueError("Transaction not found or not authorized")
             saved_items = []
             for item in items:
                 item_res = await self.repository.insert_transaction_item(

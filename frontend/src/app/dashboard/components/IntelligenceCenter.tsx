@@ -108,7 +108,7 @@ export default function IntelligenceCenter() {
                 {/* ---------------------------------------------------------- */}
                 {/* Suscripciones / gastos recurrentes                          */}
                 {/* ---------------------------------------------------------- */}
-                <Card variant="elevated" className="space-y-4">
+                {recurringRows.length > 0 && <Card variant="elevated" className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                             <Repeat size={18} className="text-blue-500" />
@@ -126,9 +126,6 @@ export default function IntelligenceCenter() {
                         )}
                     </div>
 
-                    {recurringRows.length === 0 ? (
-                        <EmptyHint text="Aún no detectamos pagos que se repitan mes a mes." />
-                    ) : (
                         <ul className="space-y-3">
                             {recurringRows.map((item) => (
                                 <li
@@ -149,14 +146,13 @@ export default function IntelligenceCenter() {
                                             {formatCurrency(item.monthly)}
                                         </Typography>
                                         <Typography variant="small" className="text-[9px] opacity-40 uppercase font-black tracking-widest">
-                                            Variación {Math.round(item.confidence * 100)}%
+                                            Confianza {Math.round(item.confidence * 100)}%
                                         </Typography>
                                     </div>
                                 </li>
                             ))}
                         </ul>
-                    )}
-                </Card>
+                </Card>}
 
                 {/* ---------------------------------------------------------- */}
                 {/* Proyección de flujo de caja                                  */}

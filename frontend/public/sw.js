@@ -5,14 +5,14 @@
  * version nueva hay que cambiar este valor; `activate` borra las caches
  * viejas automaticamente.
  */
-const CACHE_NAME = 'niddoflow-v2';
+const CACHE_NAME = 'niddoflow-v3';
 
 /*
  * NO se precachea '/'. El HTML de la app depende del estado de sesion
  * (usuario logueado o no), asi que servirlo desde cache deja al usuario
  * viendo una version desactualizada o deslogueada de la aplicacion.
- * Las navegaciones usan network-first y solo caen a la cache si la red
- * falla.
+ * Las navegaciones nunca se guardan: pueden contener datos financieros de
+ * una sesion anterior. Sin red se muestra una pagina generica.
  */
 const PRECACHE_ASSETS = [
     '/manifest.json',
@@ -30,8 +30,7 @@ function isNeverCache(url) {
 function isStaticAsset(url) {
     return (
         url.pathname.startsWith('/_next/static/') ||
-        url.pathname === '/icon.png' ||
-        /\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$/.test(url.pathname)
+        url.pathname === '/icon.png'
     );
 }
 
@@ -81,21 +80,13 @@ self.addEventListener('fetch', (event) => {
 
     if (isNeverCache(url)) return;
 
-    // Navegaciones: network-first. La app es dinamica (sesion, datos),
-    // asi que la red manda; la cache es solo el fallback offline.
+    // Nunca guardar HTML personalizado ni recuperarlo de una sesion anterior.
     if (request.mode === 'navigate') {
         event.respondWith(
             (async () => {
                 try {
-                    const response = await fetch(request);
-                    const cache = await caches.open(CACHE_NAME);
-                    cache.put(request, response.clone());
-                    return response;
-                } catch (err) {
-                    const cached = await caches.match(request);
-                    if (cached) return cached;
-                    const fallback = await caches.match('/');
-                    if (fallback) return fallback;
+                    return await fetch(request);
+                } catch {
                     return new Response(
                         '<!doctype html><meta charset="utf-8"><title>Sin conexion</title>' +
                             '<body style="font-family:system-ui;padding:2rem;text-align:center">' +
@@ -129,21 +120,5 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Resto de GETs: network-first con fallback a cache.
-    event.respondWith(
-        (async () => {
-            try {
-                const response = await fetch(request);
-                if (response && response.ok) {
-                    const cache = await caches.open(CACHE_NAME);
-                    cache.put(request, response.clone());
-                }
-                return response;
-            } catch (err) {
-                const cached = await caches.match(request);
-                if (cached) return cached;
-                return new Response('', { status: 504 });
-            }
-        })()
-    );
+    // El resto de solicitudes pueden contener datos privados; usan la red.
 });

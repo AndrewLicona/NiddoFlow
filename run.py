@@ -12,14 +12,20 @@ def run_services():
     # Detect OS for terminal execution
     is_windows = os.name == 'nt'
     
-    # Backend command: Use venv uvicorn directly
+    # Prefer the documented environment, while retaining support for older setups.
+    venv_dir = os.path.join(backend_dir, '.venv')
+    if not os.path.isdir(venv_dir):
+        venv_dir = os.path.join(backend_dir, 'venv')
     if is_windows:
-        backend_cmd = f"cd {backend_dir} && venv\\Scripts\\uvicorn.exe main:app --reload --host 0.0.0.0 --port 8000"
+        python = os.path.join(venv_dir, 'Scripts', 'python.exe')
     else:
-        backend_cmd = f"cd {backend_dir} && ./venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+        python = os.path.join(venv_dir, 'bin', 'python')
+    if not os.path.isfile(python):
+        raise SystemExit('No se encontró el entorno Python. Consulta README.md para crearlo.')
+    backend_cmd = [python, '-m', 'uvicorn', 'main:app', '--reload', '--host', '0.0.0.0', '--port', '8000']
 
     # Frontend command: npm run dev
-    frontend_cmd = f"cd {frontend_dir} && npm run dev"
+    frontend_cmd = ['npm.cmd' if is_windows else 'npm', 'run', 'dev']
 
     print("🚀 Iniciando NiddoFlow...")
     
@@ -27,12 +33,14 @@ def run_services():
     try:
         # Start Backend
         print("📂 Iniciando Backend (FastAPI)...")
-        backend_proc = subprocess.Popen(backend_cmd, shell=True)
+        backend_proc = subprocess.Popen(backend_cmd, cwd=backend_dir)
         processes.append(backend_proc)
 
         # Start Frontend
         print("📂 Iniciando Frontend (Next.js)...")
-        frontend_proc = subprocess.Popen(frontend_cmd, shell=True)
+        frontend_env = os.environ.copy()
+        frontend_env.setdefault('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+        frontend_proc = subprocess.Popen(frontend_cmd, cwd=frontend_dir, env=frontend_env)
         processes.append(frontend_proc)
 
         print("\n✅ Ambos servicios están corriendo.")

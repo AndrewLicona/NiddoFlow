@@ -20,6 +20,7 @@ Ningún error de Gemini rompe el flujo: siempre se devuelve un mensaje amable.
 
 import json
 import logging
+import math
 import os
 import re
 from datetime import datetime, timezone
@@ -448,7 +449,7 @@ NUNCA ESCRIBAS EN LA BASE DE DATOS. Si el usuario te pide registrar, crear o añ
 {{"type": "transaction", "label": "texto legible", "payload": {{"description": "Café", "amount": 32000, "type": "expense", "category_id": null, "account_id": "<id de cuenta>", "date": "YYYY-MM-DD"}}}}
 
 Reglas de la propuesta:
-- "type" del movimiento: "expense" (gasto), "income" (ingreso) o "transfer" (transferencia).
+- "type" del movimiento: "expense" (gasto) o "income" (ingreso). Para transferencias, indica al usuario que las registre desde la aplicación y no generes una propuesta.
 - "amount" es el número sin símbolos ni separadores (ejemplo 32000).
 - "category_id" debe ser el id exacto de una de las categorías disponibles o null si no sabes cuál es.
 - "account_id" debe ser el id exacto de una de las cuentas disponibles.
@@ -600,12 +601,14 @@ FORMATO DE LA RESPUESTA:
             amount = float(payload.get("amount"))
         except (TypeError, ValueError):
             return None
-        if amount <= 0:
+        if not math.isfinite(amount) or amount <= 0:
             return None
 
         tx_type = str(payload.get("type") or "expense").strip().lower()
-        if tx_type not in TRANSACTION_TYPE_LABELS:
-            tx_type = "expense"
+        # Las transferencias requieren cuenta de destino; el contrato actual
+        # de propuestas no la incluye, así que no se deben proponer todavía.
+        if tx_type not in ("expense", "income"):
+            return None
 
         accounts = context.get("accounts") or []
         categories = context.get("categories") or []
@@ -614,10 +617,6 @@ FORMATO DE LA RESPUESTA:
         valid_account = next(
             (item for item in accounts if str(item.get("id")) == account_id), None
         )
-        if valid_account is None:
-            # Si la cuenta no existe (o no la indicó), se usa la primera del
-            # usuario: nunca se propone una cuenta ajena ni inventada.
-            valid_account = accounts[0] if accounts else None
         if valid_account is None:
             return None
         account_id = str(valid_account.get("id") or "")
@@ -649,11 +648,12 @@ FORMATO DE LA RESPUESTA:
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
             date = _today_iso()
 
-        label = "{} · {} · ${} · {}".format(
+        label = "{} · {} · ${} · {} · Cuenta: {}".format(
             TRANSACTION_TYPE_LABELS.get(tx_type, "Gasto"),
             description,
             _format_money(amount),
             category_name,
+            valid_account.get("name") or "Cuenta",
         )
 
         return {
@@ -862,6 +862,12 @@ FORMATO DE LA RESPUESTA:
         # 6. Propuestas (la IA propone, el usuario confirma).
         raw_proposals, clean_reply = self._parse_proposal_block(reply)
         proposals = self._build_proposals(raw_proposals, context)
+        if PROPOSAL_MARKER in reply and not proposals:
+            clean_reply = (
+                "No pude preparar un movimiento con datos válidos. "
+                "Indícame el importe, el tipo y la cuenta que deseas usar; "
+                "las transferencias deben registrarse desde la aplicación."
+            )
         if not clean_reply:
             # El modelo devolvió solo el bloque técnico: se le da un texto
             # legible en vez de mostrarle el JSON al usuario.

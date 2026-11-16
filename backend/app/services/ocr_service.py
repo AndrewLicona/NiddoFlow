@@ -848,7 +848,7 @@ Reglas:
                 elif "```" in text_resp:
                     text_resp = text_resp.split("```")[1].split("```")[0].strip()
 
-                logger.info(f"Gemini [{masked_key}] Success: {text_resp}")
+                logger.info("Gemini [%s] procesó el recibo", masked_key)
                 data = json.loads(text_resp)
                 # Update current active key index to this successful one
                 _current_gemini_index = key_idx
@@ -882,7 +882,7 @@ Reglas:
                             text_resp = text_resp.split("```json")[1].split("```")[0].strip()
                         elif "```" in text_resp:
                             text_resp = text_resp.split("```")[1].split("```")[0].strip()
-                        logger.info(f"Gemini [{masked_key}] Success on retry: {text_resp}")
+                        logger.info("Gemini [%s] procesó el recibo en el reintento", masked_key)
                         data = json.loads(text_resp)
                         _current_gemini_index = key_idx
                         result = await _build_result_from_gemini_data(data, records)
@@ -911,9 +911,6 @@ async def _extract_easyocr(
             raise ValueError("EasyOCR reader is not available.")
         results = reader.readtext(image_bytes)
         text = "\n".join([res[1] for res in results])
-        try:
-            with open("ocr_debug.txt", "w", encoding="utf-8") as f: f.write(text)
-        except: pass
         return await _process_raw_text(text, categories)
     except Exception as e:
         raise ValueError(f"Error EasyOCR: {str(e)}")

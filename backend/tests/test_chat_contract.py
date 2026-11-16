@@ -759,7 +759,7 @@ def test_write_intention_produces_a_validated_proposal():
     assert len(result["proposals"]) == 1
     proposal = result["proposals"][0]
     assert proposal["type"] == "transaction"
-    assert proposal["label"] == "Gasto · Café · $32.000 · Alimentación"
+    assert proposal["label"] == "Gasto · Café · $32.000 · Alimentación · Cuenta: Principal"
     assert proposal["payload"] == {
         "description": "Café",
         "amount": 32000.0,
@@ -829,6 +829,27 @@ def test_invalid_proposals_are_discarded():
     result = asyncio.run(service.chat_with_assistant(USER_ID, "Registra un café"))
     assert len(result["proposals"]) == 1
     assert result["proposals"][0]["payload"]["category_id"] is None
+
+
+def test_proposal_never_guesses_account_or_accepts_incomplete_transfer():
+    service = _service()
+    context = {"accounts": ACCOUNTS, "categories": list(CATEGORIES.values())}
+    base = {"description": "Pago", "amount": 1000, "type": "expense"}
+    for payload in (
+        base,
+        {**base, "account_id": "cuenta-desconocida"},
+        {**base, "account_id": "acc-1", "amount": float("nan")},
+        {**base, "account_id": "acc-1", "type": "transfer"},
+    ):
+        assert service._validate_proposal({"type": "transaction", "payload": payload}, context) is None
+
+
+def test_rejected_proposal_explains_that_no_movement_was_prepared():
+    invalid = json.dumps({"type": "transaction", "payload": {"description": "Café", "amount": 1000, "type": "expense"}})
+    service = _service([FakeResponse(text=f"Listo.\n{PROPOSAL_MARKER}\n{invalid}")])
+    result = asyncio.run(service.chat_with_assistant(USER_ID, "Registra un café"))
+    assert result["proposals"] == []
+    assert "No pude preparar" in result["reply"]
 
 
 # ---------------------------------------------------------------------------

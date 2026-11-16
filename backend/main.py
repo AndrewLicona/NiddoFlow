@@ -1,6 +1,6 @@
 import time
 import logging
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -27,7 +27,7 @@ from app.routers import shopping as shopping_router
 from app.routers import goals as goals_router
 
 from contextlib import asynccontextmanager
-from app.db.prisma_db import connect_prisma, disconnect_prisma
+from app.db.prisma_db import connect_prisma, disconnect_prisma, prisma
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -94,3 +94,9 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+@app.get("/ready")
+def readiness_check():
+    if not prisma.is_connected():
+        return JSONResponse(status_code=503, content={"status": "not ready", "database": "disconnected"})
+    return {"status": "ready", "database": "connected"}

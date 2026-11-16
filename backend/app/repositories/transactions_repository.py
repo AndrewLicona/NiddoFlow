@@ -131,22 +131,21 @@ class TransactionsRepository(BaseRepository):
         except Exception:
             return self.db.table("transaction_items").insert(item_data).execute()
 
-    async def delete_transaction_items(self, transaction_id: str, family_id: str = None):
+    async def delete_transaction_items(self, transaction_id: str, family_id: str):
         """Borra los productos de un movimiento **acotado a la familia**.
 
         `transaction_items` no tiene columna `family_id`: el alcance se
         comprueba sobre el movimiento padre. Si el movimiento no es de la
         familia indicada, no se borra ninguna linea.
         """
-        if family_id:
-            try:
-                owned = await self.prisma.transaction.find_first(
-                    where={"id": transaction_id, "family_id": family_id}
-                )
-                if owned is None:
-                    return False
-            except Exception:
-                pass
+        if not family_id:
+            raise ValueError("family_id is required")
+        # Si no se puede comprobar la pertenencia, no se borra nada.
+        owned = await self.prisma.transaction.find_first(
+            where={"id": transaction_id, "family_id": family_id}
+        )
+        if owned is None:
+            return False
 
         try:
             return await self.prisma.transactionitem.delete_many(where={"transaction_id": transaction_id})

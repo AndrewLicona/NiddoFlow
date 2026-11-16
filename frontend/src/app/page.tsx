@@ -16,8 +16,7 @@ export default async function DashboardPage(props: {
     const code = searchParams.code as string;
 
     if (code) {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
-        redirect(`${baseUrl}/auth/callback?code=${code}`);
+        redirect(`/auth/callback?code=${encodeURIComponent(code)}`);
     }
 
     try {

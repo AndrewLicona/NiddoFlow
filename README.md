@@ -15,14 +15,14 @@
 - **Exportación Total**: Generación de reportes PDF profesionales alineados a A4 y descarga de historial completo en formato CSV.
 
 ### 📱 Experiencia Premium & Mobile-First
-- **Offline-Ready**: Arquitectura diseñada para funcionar sin conexión estable (PWA).
+- **PWA**: Recursos estáticos en caché; sin conexión se muestra una página informativa para proteger los datos de la sesión.
 - **Diseño Molecular**: Interfaz construida con un sistema de diseño atómico (Atoms -> Molecules -> Organisms).
 - **Consistencia Visual**: Iconografía profesional con Lucide-React y una paleta de colores curada para modo oscuro y claro.
 
 ## 🛠️ Stack Tecnológico
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion, Recharts.
-- **Backend**: FastAPI (Python), SQLAlchemy, Pydantic.
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS, Framer Motion, Recharts.
+- **Backend**: FastAPI (Python), Prisma, Pydantic.
 - **Base de Datos & Auth**: Supabase (PostgreSQL), RLS (Row Level Security).
 - **Infraestructura**: Docker ready, PWA support.
 
@@ -35,19 +35,31 @@
 
 ### Configuración Local
 
-1. **Backend**:
+1. Copia `backend/.env.example` a `backend/.env` y configura las credenciales de Supabase y la conexión PostgreSQL. Configura también `frontend/.env.local` con las variables públicas de Supabase y la URL del backend; consulta `.env.production.example` para sus nombres. La clave `service_role` es secreta y solo debe estar en el backend.
+
+2. **Backend** (Python 3.11 o 3.12):
    ```bash
    cd backend
-   pip install -r requirements.txt
-   uvicorn main:app --reload
+   python -m venv .venv
+   # Windows PowerShell: .venv\Scripts\Activate.ps1
+   # macOS/Linux: source .venv/bin/activate
+   python -m pip install -r requirements.txt
+   prisma generate
+   python -m uvicorn main:app --reload
    ```
 
-2. **Frontend**:
+3. **Frontend**:
    ```bash
    cd frontend
-   npm install
+   npm ci
    npm run dev
    ```
+
+La API expone `/health` para comprobar que el proceso responde y `/ready` para consultar el estado de conexión del cliente Prisma. Para ejecutar las pruebas del backend, activa el entorno virtual y ejecuta `python -m pytest` desde `backend`.
+
+### Acceso con Google en desarrollo
+
+En el panel de Supabase, abre **Authentication → URL Configuration** y añade `http://localhost:3000/auth/callback` a **Redirect URLs**. Si usas `127.0.0.1` en lugar de `localhost`, añade también `http://127.0.0.1:3000/auth/callback`. Conserva la URL de producción en **Site URL** y las redirecciones de producción existentes. Inicia el acceso desde la misma dirección y navegador en los que vas a usar la aplicación; el verificador de la sesión se guarda allí.
 
 ---
 Diseñado con ❤️ para la libertad financiera familiar.
