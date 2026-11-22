@@ -66,8 +66,8 @@ interface Transaction {
     purchase_total_amount?: number | null;
 }
 
-const TransactionList: React.FC = () => {
-    const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, exportTransactions, isLoading: txLoading } = useTransactions();
+const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds: string[] }> = ({ scope, month, accountIds }) => {
+    const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, exportTransactions, isLoading: txLoading } = useTransactions({ scope });
     const { categories, isLoading: catLoading } = useCategories();
     const { accounts, isLoading: accLoading } = useAccounts();
 
@@ -215,7 +215,10 @@ const TransactionList: React.FC = () => {
     };
 
     const processedTransactions = React.useMemo(() => {
-        let filtered = [...transactions];
+        let filtered = (transactions as Transaction[]).filter(t =>
+            (!month || String(t.date).slice(0, 7) === month) &&
+            (!accountIds.length || accountIds.includes(t.account_id ?? ""))
+        );
 
         if (filter === 'income') {
             filtered = filtered.filter(t =>
@@ -257,7 +260,7 @@ const TransactionList: React.FC = () => {
         });
 
         return groups;
-    }, [transactions, filter, debtSubFilter]);
+    }, [transactions, filter, debtSubFilter, month, accountIds]);
 
     if (txLoading || catLoading || accLoading) {
         return (

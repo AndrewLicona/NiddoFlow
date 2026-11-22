@@ -19,6 +19,7 @@ class ChatMessageResponse(BaseModel):
     """
     reply: str
     proposals: List[dict] = []
+    sources: List[dict] = []
 
 def get_chat_service():
     return ChatService()
@@ -46,6 +47,7 @@ async def send_chat_message(
     return {
         "reply": result.get("reply", ""),
         "proposals": result.get("proposals", []) or [],
+        "sources": result.get("sources", []) or [],
     }
 
 @router.get("/history", response_model=List[dict])

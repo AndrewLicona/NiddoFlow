@@ -431,6 +431,11 @@ HERRAMIENTAS DISPONIBLES (solo lectura):
 - get_spend_by_member: gasto del mes desglosado por miembro.
 - get_budget_status: gastado real frente al límite de cada presupuesto.
 - get_transactions: movimientos, con filtros por categoría, miembro y monto.
+  Para una cuenta específica usa account con su nombre exacto. Para preguntas
+  históricas sin límite temporal o sobre todo lo registrado, usa all_history=true
+  y omite month. Usa totals_by_type y matched_count para responder sobre el
+  conjunto entero: transactions solo es una muestra si sample_truncated es true.
+  No sumes transferencias como ingresos ni gastos.
 - get_debts: deudas del hogar.
 - get_recurring: gastos recurrentes detectados.
 - get_price_history: historial de precios de un producto.
@@ -881,7 +886,17 @@ FORMATO DE LA RESPUESTA:
         # 7. Se guarda la respuesta junto con el intercambio de herramientas.
         await self._save_message(user_id, "assistant", clean_reply, tool_calls=exchanges)
 
-        return {"reply": clean_reply, "proposals": proposals}
+        sources = []
+        for exchange in exchanges:
+            result = exchange["result"]
+            if exchange["name"] == "get_transactions" and "matched_count" in result:
+                source = {key: result[key] for key in ("scope", "month", "matched_count", "account_ids", "account_filter")}
+                if source not in sources:
+                    sources.append(source)
+        response = {"reply": clean_reply, "proposals": proposals}
+        if sources:
+            response["sources"] = sources
+        return response
 
     # ------------------------------------------------------------------
     # Historial

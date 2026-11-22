@@ -146,13 +146,10 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                 </Card>
             </div>
 
+            <SmartFeed currentDate={today} />
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-                <div className="lg:col-span-8 space-y-6 md:space-y-10">
-                    <SmartFeed currentDate={today} />
-
-                    <IntelligenceCenter />
-
-                    <ChartCarousel />
+                <div className="order-2 lg:order-1 lg:col-span-8 space-y-6 md:space-y-10">
 
                     {processedBudgets.length > 0 && (
                         <Card variant="elevated">
@@ -197,7 +194,7 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                     )}
                 </div>
 
-                <div className="lg:col-span-4 flex flex-col gap-6 md:gap-10">
+                <div className="order-1 lg:order-2 lg:col-span-4 flex flex-col gap-6 md:gap-10">
                     <Card variant="elevated" className="order-2">
                         <div className="flex justify-between items-center mb-6">
                             <Typography variant="h3" className="text-foreground font-black">Mis Cuentas</Typography>
@@ -266,6 +263,13 @@ export default function DashboardClient({ user, profile }: DashboardClientProps)
                     </Card>
                 </div>
             </div>
+            <details className="rounded-2xl border border-foreground/10 bg-card p-4">
+                <summary className="cursor-pointer font-bold">Análisis y gráficos</summary>
+                <div className="mt-4 space-y-6">
+                    <IntelligenceCenter />
+                    <ChartCarousel />
+                </div>
+            </details>
         </main>
     );
 }

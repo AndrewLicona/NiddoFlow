@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import type { ChatSource } from '@/lib/api/chat.api';
 import { useChatHistory, useSendChatMessage } from '@/hooks/useChat';
 import { X, Bot, User, Loader2, Sparkles, Send, Check, Trash2 } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -23,6 +25,7 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     proposals?: Proposal[];
+    sources?: ChatSource[];
     proposalState?: Record<number, 'pending' | 'confirmed' | 'dismissed'>;
 }
 
@@ -96,6 +99,7 @@ export const NiddoAIChat = () => {
                     setLocalMessages(prev => [...prev, {
                         role: 'assistant',
                         content: data?.reply ?? '',
+                        sources: data?.sources,
                         proposals: proposals.length ? proposals : undefined,
                         proposalState: proposals.length
                             ? Object.fromEntries(proposals.map((_, i) => [i, 'pending' as const]))
@@ -256,6 +260,15 @@ export const NiddoAIChat = () => {
                                             : 'bg-card border border-foreground/[0.08] text-foreground rounded-tl-none shadow-sm'
                                     }`}>
                                         {m.role === 'assistant' ? renderFormattedContent(m.content) : m.content}
+                                        {m.sources?.map((source, index) => {
+                                            const params = new URLSearchParams({ scope: source.scope, month: source.month });
+                                            source.account_ids.forEach(id => params.append('account', id));
+                                            return (
+                                                <Link key={index} href={`/transactions?${params}`} onClick={() => setIsOpen(false)} className="mt-2 block text-xs font-semibold text-primary underline">
+                                                    {source.account_filter ?? (source.scope === 'personal' ? 'Cuentas personales' : 'Cuentas del hogar')} · {source.month === 'all_history' ? 'Todo el historial' : source.month} · {source.matched_count} movimientos coincidentes
+                                                </Link>
+                                            );
+                                        })}
 
                                         {/* Propuestas de la IA: nunca escribe sola, el usuario confirma */}
                                         {m.proposals && m.proposals.length > 0 && (
@@ -277,6 +290,7 @@ export const NiddoAIChat = () => {
                                                                 <Sparkles size={13} className="mt-0.5 shrink-0 text-primary" />
                                                                 <div className="min-w-0">
                                                                     <div className="font-bold leading-snug">{proposal.label}</div>
+                                                                    {proposal.payload.date && <p className="mt-1 text-muted-foreground">Fecha del movimiento: {proposal.payload.date.slice(0, 10)}</p>}
                                                                     <div className="opacity-60 text-[10px] mt-0.5">
                                                                         {proposal.payload.description} · {formatCurrency(proposal.payload.amount)}
                                                                     </div>

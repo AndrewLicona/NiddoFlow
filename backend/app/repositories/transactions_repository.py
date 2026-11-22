@@ -221,7 +221,7 @@ class TransactionsRepository(BaseRepository):
         profiles = await self.prisma.profile.find_many(where={"id": {"in": user_ids}})
         return type('obj', (object,), {'data': [p.dict() for p in profiles]})
 
-    async def get_transactions_prisma(self, family_id: str, account_ids: list, start_date: str = None, end_date: str = None, limit: int = None):
+    async def get_transactions_prisma(self, family_id: str, account_ids: list, start_date: str = None, end_date: str = None, limit: int = None, *, include_items: bool = True):
         where = {
             "family_id": family_id,
             "account_id": {"in": account_ids}
@@ -237,7 +237,7 @@ class TransactionsRepository(BaseRepository):
             include={
                 "category": True,
                 "account": True,
-                "items": True
+                "items": include_items
             },
             order={"date": "desc"},
             take=limit

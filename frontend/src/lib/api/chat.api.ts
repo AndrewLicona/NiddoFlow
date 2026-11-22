@@ -25,6 +25,15 @@ export interface ChatProposal {
 export interface ChatReply {
     reply: string;
     proposals?: ChatProposal[];
+    sources?: ChatSource[];
+}
+
+export interface ChatSource {
+    scope: 'personal' | 'family';
+    month: string;
+    matched_count: number;
+    account_ids: string[];
+    account_filter: string | null;
 }
 
 /**

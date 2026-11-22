@@ -244,7 +244,7 @@ class FakeTransactionsRepository(WriteGuard):
         self.prisma = None
 
     async def get_transactions_prisma(
-        self, family_id, account_ids, start_date=None, end_date=None, limit=None
+        self, family_id, account_ids, start_date=None, end_date=None, limit=None, *, include_items=True
     ):
         allowed = {str(a) for a in account_ids}
         rows = []
@@ -616,6 +616,22 @@ def test_all_tools_run_without_writing():
     assert prices["history"][0]["unit_price"] == 32000.0
 
 
+def test_history_summary_covers_more_than_the_returned_sample():
+    service = _service()
+    result = asyncio.run(service.tools.dispatch(
+        "get_transactions",
+        {"all_history": True, "account": "Principal", "limit": 1},
+        SimpleNamespace(user_id=USER_ID),
+    ))
+
+    assert result["month"] == "all_history"
+    assert result["matched_count"] > 1
+    assert result["sample_truncated"] is True
+    assert len(result["transactions"]) == 1
+    assert result["transactions"][0]["account"] == "Principal"
+    assert result["totals_by_type"]["expense"] > 0
+
+
 def test_invalid_tool_arguments_return_a_soft_error():
     """Parámetros inválidos → error suave, nunca una excepción."""
     from app.services.ai_tools import ToolContext
@@ -912,7 +928,8 @@ def test_chat_router_contract():
     assert response.proposals == []
 
     payload = ChatMessageResponse(reply="hola", proposals=[]).model_dump()
-    assert set(payload.keys()) == {"reply", "proposals"}
+    assert set(payload.keys()) == {"reply", "proposals", "sources"}
+    assert payload["sources"] == []
     assert payload["proposals"] == []
 
 

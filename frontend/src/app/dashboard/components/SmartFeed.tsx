@@ -1,7 +1,9 @@
 'use client'
 
 import { Typography } from '@/components/ui/atoms/Typography'
-import { AlertCircle, Brain, AlertTriangle, Sparkles, Loader2 } from 'lucide-react'
+import { AlertCircle, Brain, AlertTriangle } from 'lucide-react'
+import Link from 'next/link'
+import { useRecurringBills } from '@/hooks/useRecurringBills'
 import { formatCurrency } from '@/utils/format'
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
@@ -14,9 +16,19 @@ interface SmartFeedProps {
     currentDate: Date | null;
 }
 
+type PayableDebt = {
+    id: string;
+    type: string;
+    status: string;
+    due_date?: string | null;
+    remaining_amount: number;
+    description: string;
+};
+
 export default function SmartFeed({ currentDate }: SmartFeedProps) {
-    const { budgets, isLoading: budgetsLoading } = useBudgets();
-    const { debts, isLoading: debtsLoading } = useDebts();
+    const { budgets, error: budgetsError } = useBudgets();
+    const { debts, error: debtsError } = useDebts();
+    const { overdue, dueNext7Days, error: billsError } = useRecurringBills();
 
     const today = useMemo(() => currentDate ?? new Date(), [currentDate]);
 
@@ -39,66 +51,60 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
         [activeBudgets]
     );
 
-    const debtToPay = useMemo(() =>
-        debts
-            .filter((d: any) => d.type === 'to_pay' && d.status === 'active')
-            .reduce((acc: number, d: any) => acc + d.remaining_amount, 0),
-        [debts]);
+    const todayKey = new Intl.DateTimeFormat('sv-SE').format(today);
+    const debtAlerts = (debts as PayableDebt[]).flatMap((debt) => {
+        if (debt.type !== 'to_pay' || debt.status !== 'active' || !debt.due_date || debt.remaining_amount <= 0) return [];
+        const days = (Date.parse(String(debt.due_date).slice(0, 10)) - Date.parse(todayKey)) / 86400000;
+        return Number.isFinite(days) && days <= 7
+            ? [{ id: `debt-${debt.id}`, name: debt.description, amount: debt.remaining_amount, days, href: '/debts' }]
+            : [];
+    });
+    const billAlerts = overdue.concat(dueNext7Days).flatMap((bill) =>
+        bill.is_active && bill.days_until_due !== null
+            ? [{ id: `bill-${bill.id}`, name: bill.name, amount: bill.amount, days: bill.days_until_due, href: '/bills' }]
+            : []
+    );
 
     // Combine all "feed items" into a single list
     const feedItems = [
         // 1. Debts
-        ...(debtToPay > 0 ? [{
-            id: 'debt-alert',
-            type: 'critical',
-            icon: <AlertCircle size={20} className="text-rose-500" />,
-            title: 'Compromisos',
-            message: `Cuentas por pagar: ${formatCurrency(debtToPay)}`,
-            bgColor: 'bg-rose-50 dark:bg-rose-900/10',
-            borderColor: 'border-rose-100 dark:border-rose-900/30'
-        }] : []),
+        ...[...debtAlerts, ...billAlerts].map(({id, name, amount, days, href}) => ({
+            id, href,
+            priority: days < 0 ? 0 : days === 0 ? 1 : 3,
+            action: href === '/debts' ? 'Revisar deuda' : 'Revisar pago',
+            icon: <AlertCircle size={20} className={days <= 0 ? 'text-rose-500' : 'text-orange-500'} />,
+            title: name,
+            message: `${days < 0 ? `Venció hace ${-days} d` : days === 0 ? 'Vence hoy' : days === 1 ? 'Vence mañana' : `Vence en ${days} días`} · ${formatCurrency(amount)} por pagar`,
+            bgColor: 'bg-card',
+            borderColor: 'border-foreground/10'
+        })),
 
         // 2. Budget Alerts (gastado real del período, calculado en el servidor)
         ...budgetAlerts.map((b: any) => ({
             id: `budget-${b.id}`,
-            type: b.status === 'critical' ? 'critical' : 'warning',
+            href: '/budgets',
+            action: 'Revisar límite',
+            priority: Number(b.percent) >= 100 ? 2 : 4,
             icon: <AlertTriangle size={20} className={b.status === 'critical' ? 'text-rose-500' : 'text-orange-500'} />,
-            title: 'Presupuesto',
-            message: `${b.category_name || b.categories?.name || 'Categoría'} al ${Number(b.percent || 0).toFixed(0)}% · ${formatCurrency(Number(b.spent || 0))} gastado`,
+            title: b.category_name || b.categories?.name || 'Presupuesto',
+            message: Number(b.spent) > Number(b.amount)
+                ? `Excediste el límite por ${formatCurrency(Number(b.spent) - Number(b.amount))}.`
+                : `Te quedan ${formatCurrency(Number(b.amount) - Number(b.spent))} del límite de este período.`,
             bgColor: b.status === 'critical' ? 'bg-rose-50 dark:bg-rose-900/10' : 'bg-orange-50 dark:bg-orange-900/10',
             borderColor: b.status === 'critical' ? 'border-rose-100 dark:border-rose-900/30' : 'border-orange-100 dark:border-orange-900/30'
         }))
-    ]
+    ].sort((a, b) => a.priority - b.priority)
 
-    if (budgetsLoading || debtsLoading) {
-        return (
-            <div className="flex items-center justify-center p-8">
-                <Loader2 className="animate-spin text-indigo-600" size={24} />
-            </div>
-        );
-    }
-
-    if (feedItems.length === 0) {
-        return (
-            <div className="flex items-center gap-3 p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/20">
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-full">
-                    <Sparkles size={16} className="text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div>
-                    <Typography variant="small" className="font-bold text-emerald-800 dark:text-emerald-200">Todo en orden</Typography>
-                    <Typography variant="small" className="text-emerald-600 dark:text-emerald-400 opacity-80 text-[10px]">No hay alertas ni anomalías por ahora.</Typography>
-                </div>
-            </div>
-        )
-    }
+    if (!currentDate || (!feedItems.length && !budgetsError && !debtsError && !billsError)) return null;
 
     return (
         <div className="w-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center gap-2 mb-3 px-1">
                 <Brain className="text-indigo-500" size={18} />
-                <Typography variant="small" className="text-foreground/70 font-black uppercase tracking-widest text-[10px]">Alertas</Typography>
+                <Typography variant="small" className="text-foreground/70 font-black uppercase tracking-widest text-[10px]">Requiere atención</Typography>
             </div>
+            {(budgetsError || debtsError || billsError) && <p role="status" className="mb-3 text-sm text-muted-foreground">Algunas alertas no se pudieron cargar.</p>}
 
             {/* Responsive Container: Horizontal Scroll on Mobile, Grid on Desktop */}
             <div className="
@@ -127,6 +133,7 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
                         <Typography variant="body" className="leading-snug font-medium text-sm">
                             {item.message}
                         </Typography>
+                        <Link href={item.href} className="text-sm font-bold text-primary underline-offset-4 hover:underline">{item.action}</Link>
                     </motion.div>
                 ))}
             </div>

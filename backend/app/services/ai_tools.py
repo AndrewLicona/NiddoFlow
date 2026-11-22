@@ -43,7 +43,6 @@ MAX_TRANSACTION_LIMIT = 200
 DEFAULT_TRANSACTION_LIMIT = 25
 
 # Nº máximo de transacciones que se leen de la base para después filtrar.
-TRANSACTIONS_FETCH_MULTIPLIER = 5
 MAX_TRANSACTIONS_FETCH = 500
 
 # Meses en formato YYYY-MM.
@@ -285,13 +284,22 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
             "descripción, monto, categoría, miembro y cuenta. Permite filtrar por "
             "categoría, miembro y rango de monto. Úsala para '¿cuál fue el gasto más "
             "caro?' o 'muéstrame los gastos de transporte'. "
-            "El scope lo decides tú según la pregunta."
+            "El scope lo decides tú según la pregunta. Incluye totales del conjunto "
+            "filtrado y una muestra limitada de movimientos."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "scope": dict(SCOPE_PROPERTY),
                 "month": dict(MONTH_PROPERTY),
+                "all_history": {
+                    "type": "boolean",
+                    "description": "Consulta desde el primer movimiento. Omite month si lo activas.",
+                },
+                "account": {
+                    "type": "string",
+                    "description": "Nombre de la cuenta. Si se omite, consulta todas las cuentas accesibles.",
+                },
                 "category": {
                     "type": "string",
                     "description": (
@@ -706,6 +714,10 @@ class AITools:
 
         category_filter = _normalize_text(args.get("category"))
         member_filter = _normalize_text(args.get("member"))
+        account_filter = _normalize_text(args.get("account"))
+        all_history = args.get("all_history") is True
+        if all_history and month:
+            return _soft_error("Elige un mes o todo el historial, pero no ambos.")
 
         try:
             profile = await self.insights_repository.get_user_profile(context.user_id)
@@ -727,8 +739,11 @@ class AITools:
             str(_to_dict(account).get("id"))
             for account in (accounts or [])
             if _to_dict(account).get("id")
+            and (not account_filter or account_filter == _normalize_text(_to_dict(account).get("name")))
         ]
         if not account_ids:
+            if account_filter:
+                return _soft_error("No encontré una cuenta con ese nombre en el alcance solicitado.")
             return {
                 "scope": scope,
                 "month": month or "",
@@ -739,13 +754,15 @@ class AITools:
 
         year, month_number = parse_month(month)
         start, end = month_bounds(year, month_number)
-        fetch_limit = min(
-            MAX_TRANSACTIONS_FETCH, max(limit * TRANSACTIONS_FETCH_MULTIPLIER, limit)
-        )
+        period = "all_history" if all_history else f"{year:04d}-{month_number:02d}"
 
         try:
             rows = await self.transactions_repository.get_transactions_prisma(
-                family_id, account_ids, start.isoformat(), end.isoformat(), fetch_limit
+                family_id, account_ids,
+                None if all_history else start.isoformat(),
+                None if all_history else end.isoformat(),
+                None,
+                include_items=False,
             )
         except Exception as exc:
             logger.warning("[chat] No se pudieron leer los movimientos: %s", exc)
@@ -755,6 +772,9 @@ class AITools:
         profiles_map = await self._load_member_names(transactions)
 
         filtered: List[Dict[str, Any]] = []
+        matched = 0
+        totals = {"income": 0.0, "expense": 0.0, "transfer": 0.0}
+        largest_expense = None
         for row in transactions:
             category = _to_dict(row.get("category"))
             category_name = str(category.get("name") or "Sin categoría")
@@ -774,6 +794,19 @@ class AITools:
                 continue
 
             account = _to_dict(row.get("account"))
+            matched += 1
+            tx_type = row.get("type")
+            if tx_type in totals:
+                totals[tx_type] += amount
+            if tx_type == "expense" and (largest_expense is None or amount > largest_expense["amount"]):
+                largest_expense = {
+                    "amount": amount,
+                    "date": _format_date(row.get("date")),
+                    "description": row.get("description") or "",
+                    "account": account.get("name") or "Cuenta",
+                }
+            if len(filtered) >= limit:
+                continue
             filtered.append(
                 {
                     "date": _format_date(row.get("date")),
@@ -785,13 +818,17 @@ class AITools:
                     "account": account.get("name") or "Cuenta",
                 }
             )
-            if len(filtered) >= limit:
-                break
 
         return {
             "scope": scope,
-            "month": f"{year:04d}-{month_number:02d}",
+            "month": period,
             "total": len(filtered),
+            "matched_count": matched,
+            "account_ids": account_ids,
+            "account_filter": args.get("account") if account_filter else None,
+            "totals_by_type": {kind: round(amount, 2) for kind, amount in totals.items()},
+            "largest_expense": largest_expense,
+            "sample_truncated": matched > len(filtered),
             "transactions": filtered,
         }
 

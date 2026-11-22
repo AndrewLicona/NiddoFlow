@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useVisibleModules } from '@/hooks/useVisibleModules';
 import { usePathname } from 'next/navigation';
 import {
     Home, History, Target, Banknote, Settings, LogOut, Plus, Landmark,
@@ -37,7 +38,7 @@ const navItems = [
 const mobileNavItems = [
     { name: 'Inicio', href: '/', icon: Home },
     { name: 'Límites', href: '/budgets', icon: Target },
-    { name: 'Abono', href: '/transactions', icon: Plus, isFab: true },
+    { name: 'Añadir movimiento', href: '/transactions/new', icon: Plus, isFab: true },
     { name: 'Deudas', href: '/debts', icon: Banknote },
     { name: 'Más', href: '#', icon: MoreHorizontal, isMore: true },
 ];
@@ -57,6 +58,7 @@ const moreItems = [
 ];
 
 export const Navigation = () => {
+    const { isVisible } = useVisibleModules();
     const pathname = usePathname();
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [isMoreOpen, setIsMoreOpen] = useState(false);
@@ -87,6 +89,7 @@ export const Navigation = () => {
                                 <Link
                                     key="fab"
                                     href={item.href}
+                                    aria-label={item.name}
                                     className="flex flex-col items-center justify-center w-12 h-12 bg-primary text-primary-foreground rounded-2xl shadow-lg shadow-primary/40 active:scale-90 transition-all duration-300"
                                 >
                                     <Icon size={24} strokeWidth={3} />
@@ -151,7 +154,7 @@ export const Navigation = () => {
                                 Todo el menú
                             </p>
                             <div className="grid grid-cols-3 gap-3">
-                                {moreItems.map((item) => {
+                                {moreItems.filter(item => isVisible(item.href)).map((item) => {
                                     const Icon = item.icon;
                                     return (
                                         <Link
@@ -183,7 +186,7 @@ export const Navigation = () => {
                     explica solo sin depender del tooltip. El ritmo vertical
                     compacto evita el scroll en pantallas de 768px. */}
                 <div className="flex-1 flex flex-col items-center gap-1 overflow-y-auto w-full px-2">
-                    {navItems.map((item) => {
+                    {navItems.filter(item => isVisible(item.href)).map((item) => {
                         const isActive = pathname === item.href;
                         const Icon = item.icon;
                         return (

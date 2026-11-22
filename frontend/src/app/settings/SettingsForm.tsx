@@ -12,9 +12,10 @@ import type { Category, CategoryWarnings } from '@/lib/api/categories.api'
 import { AffectedRecordsList, ImpactSummaryTiles } from './CategoryImpactDetails'
 import {
     Home, Link as LinkIcon, Copy, Check, Users, LogOut, AlertTriangle, Palette, Moon, Sun, Monitor,
-    Leaf, Droplets, Sunset, Plus, Pencil, Trash2, Shapes, Tags, Loader2, ArrowRightLeft, ChevronDown
+    Leaf, Droplets, Sunset, Plus, Pencil, Trash2, Shapes, Tags, Loader2, ArrowRightLeft
 } from 'lucide-react'
-import { selectStyles } from '@/components/ui/molecules/SelectField'
+import { SelectField } from '@/components/ui/molecules/SelectField'
+import { optionalModules, useVisibleModules } from '@/hooks/useVisibleModules'
 import type { LucideIcon } from 'lucide-react'
 import {
     UtensilsCrossed, Car, House, ShoppingCart, HeartPulse, Film, Dumbbell, GraduationCap, Scissors,
@@ -511,24 +512,18 @@ function CategoriesPanel() {
 
                                 {targetCategories.length > 0 ? (
                                     <div className="flex flex-col sm:flex-row gap-2">
-                                        <div className="flex-1 min-w-0 relative">
-                                            <select
+                                            <SelectField
                                                 value={targetCategoryId}
                                                 onChange={(e) => setTargetCategoryId(e.target.value)}
-                                                className={`${selectStyles} w-full py-2.5`}
+                                                wrapperClassName="flex-1 min-w-0"
+                                                className="py-2.5"
                                                 aria-label="Categoría de destino"
                                             >
                                                 <option value="">Elige una categoría...</option>
                                                 {targetCategories.map((c) => (
                                                     <option key={c.id} value={c.id}>{c.name}</option>
                                                 ))}
-                                            </select>
-                                            <ChevronDown
-                                                size={16}
-                                                aria-hidden="true"
-                                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                                            />
-                                        </div>
+                                            </SelectField>
                                         <Button
                                             variant="primary"
                                             onClick={handleReassign}
@@ -652,6 +647,7 @@ export default function SettingsForm({ family, members }: { family: FamilyData, 
     const [isLeaving, setIsLeaving] = useState(false)
     const [hasCopied, setHasCopied] = useState(false)
     const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'categories'>('general')
+    const { isVisible, setVisible } = useVisibleModules()
     const { theme, setTheme } = useTheme()
     const { palette, setPalette } = useColorPalette()
 
@@ -697,6 +693,16 @@ export default function SettingsForm({ family, members }: { family: FamilyData, 
 
             {activeTab === 'general' ? (
                 <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-300">
+                    <Card variant="elevated" className="space-y-3">
+                        <Typography variant="h3">Módulos en el menú</Typography>
+                        <Typography variant="muted">Elige qué accesos quieres ver en este navegador.</Typography>
+                        {optionalModules.map(({ href, label }) => (
+                            <label key={href} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-foreground/10 p-3">
+                                <span className="text-sm font-semibold">{label}</span>
+                                <input type="checkbox" checked={isVisible(href)} onChange={event => setVisible(href, event.target.checked)} className="size-5 accent-primary" />
+                            </label>
+                        ))}
+                    </Card>
                     {/* Family Info */}
                     <Card variant="elevated" className="overflow-hidden">
                         <div className="flex justify-between items-start mb-6">

@@ -19,10 +19,11 @@ import { Typography } from '../atoms/Typography';
  * el ancho disponible o ajustarse al contenido (celdas de tabla, filtros).
  */
 export const selectStyles = `
-    appearance-none rounded-xl border bg-card pl-4 pr-10 py-3
+    appearance-none rounded-xl border border-foreground/15 bg-card pl-4 pr-10 py-3
     text-base sm:text-sm text-foreground
     focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
-    transition-all outline-none cursor-pointer
+    transition-colors outline-none cursor-pointer hover:border-primary/45
+    [&>option]:bg-card [&>option]:text-foreground
     disabled:opacity-50 disabled:cursor-not-allowed
 `;
 
