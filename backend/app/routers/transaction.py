@@ -56,7 +56,7 @@ async def recover_receipt_items(
         [item.model_dump() for item in payload.items],
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="No se encontró un recibo propio con ese adjunto.")
+        raise HTTPException(status_code=404, detail="El recibo cambió o no está en una cuenta accesible.")
     return {"saved": result}
 
 @router.post("/", response_model=TransactionResponse)

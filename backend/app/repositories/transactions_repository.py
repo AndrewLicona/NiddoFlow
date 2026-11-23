@@ -7,9 +7,11 @@ class TransactionsRepository(BaseRepository):
         async with self.prisma.tx() as db:
             # Serializa la recuperación del mismo recibo sin cambiar sus datos.
             owned = await db.query_raw(
-                "SELECT family_id FROM transactions WHERE id = $1::uuid AND user_id = $2::uuid "
-                "AND receipt_url = $3 AND type = 'expense' AND family_id = "
-                "(SELECT family_id FROM profiles WHERE id = $2::uuid) FOR UPDATE",
+                "SELECT t.family_id FROM transactions t JOIN accounts a ON a.id = t.account_id "
+                "AND a.family_id = t.family_id WHERE t.id = $1::uuid "
+                "AND (a.user_id IS NULL OR a.user_id = $2::uuid) "
+                "AND t.receipt_url = $3 AND t.type = 'expense' AND t.family_id = "
+                "(SELECT family_id FROM profiles WHERE id = $2::uuid) FOR UPDATE OF t",
                 tx_id, user_id, receipt_url,
             )
             if not owned:

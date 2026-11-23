@@ -58,7 +58,6 @@ interface Transaction {
     account_name?: string;
     user_name?: string;
     receipt_url?: string;
-    user_id?: string;
     target_account_id?: string;
     target_account_name?: string;
     merchant?: string | null;
@@ -68,7 +67,7 @@ interface Transaction {
     purchase_total_amount?: number | null;
 }
 
-const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds: string[]; userId: string; movementId?: string }> = ({ scope, month, accountIds, userId, movementId }) => {
+const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds: string[]; movementId?: string }> = ({ scope, month, accountIds, movementId }) => {
     const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, exportTransactions, isLoading: txLoading } = useTransactions({ scope });
     const { categories, isLoading: catLoading } = useCategories();
     const { accounts, isLoading: accLoading } = useAccounts();
@@ -276,7 +275,7 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
     return (
         <div className="space-y-6 md:space-y-8">
             <ReceiptRecovery categories={categories} receipts={(transactions as Transaction[]).flatMap(tx =>
-                tx.user_id === userId && tx.type === 'expense' && tx.receipt_url && !tx.items?.length
+                tx.type === 'expense' && tx.receipt_url && !tx.items?.length
                     ? [{ id: tx.id, description: tx.description, receipt_url: tx.receipt_url, amount: tx.amount }]
                     : []
             )} />

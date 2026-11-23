@@ -51,7 +51,7 @@ export default async function TransactionsPage({ searchParams }: {
                     <Link href="/transactions" className="font-semibold text-primary underline">Ver todos los movimientos</Link>
                 </p>
             )}
-            <TransactionList key={movementId} scope={scope} month={month} accountIds={accounts} userId={user.id} movementId={movementId} />
+            <TransactionList key={movementId} scope={scope} month={month} accountIds={accounts} movementId={movementId} />
         </main>
     );
 }
