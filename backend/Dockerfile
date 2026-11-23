@@ -8,6 +8,7 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
   && apt-get update && apt-get install -y --no-install-recommends \
   tesseract-ocr \
   tesseract-ocr-spa \
+  libatomic1 \
   curl \
   openssl \
   ca-certificates \
