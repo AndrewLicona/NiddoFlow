@@ -61,7 +61,7 @@ export default function SmartFeed({ currentDate }: SmartFeedProps) {
     });
     const billAlerts = overdue.concat(dueNext7Days).flatMap((bill) =>
         bill.is_active && bill.days_until_due !== null
-            ? [{ id: `bill-${bill.id}`, name: bill.name, amount: bill.amount, days: bill.days_until_due, href: '/bills' }]
+            ? [{ id: `bill-${bill.id}`, name: bill.name, amount: bill.amount, days: bill.days_until_due, href: '/resources?section=payments' }]
             : []
     );
 

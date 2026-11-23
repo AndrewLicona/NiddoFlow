@@ -55,6 +55,10 @@ class TransactionsService(BaseService):
             data.pop('installments', None)
         return data
 
+    async def recover_receipt_items(self, user_id: str, tx_id: str, receipt_url: str, items: list):
+        payloads = [self._build_item_payload(item, tx_id) for item in items]
+        return await self.repository.append_missing_receipt_items(user_id, tx_id, receipt_url, payloads)
+
     async def create_transaction(self, user_id: str, tx_data: dict):
         profile_res = await self.repository.get_user_profile(user_id)
         if not profile_res.data or not profile_res.data[0].get('family_id'):

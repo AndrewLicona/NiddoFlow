@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/molecules/Card';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Button } from '@/components/ui/atoms/Button';
 import { InputField } from '@/components/ui/molecules/InputField';
+import { ChoiceSheet } from '@/components/ui/molecules/ChoiceSheet';
 import OcrItemsEditor, { type OcrItem } from '@/components/ui/molecules/OcrItemsEditor';
 import { useCategories } from '@/hooks/useCategories';
 import { useOcrExtract } from '@/hooks/useOcr';
@@ -443,17 +444,16 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
 
                     {/* Type */}
                     <div className="md:col-span-1">
-                        <InputField
-                            label="Naturaleza del Flujo"
+                        <ChoiceSheet
+                            label="Naturaleza"
                             name="type"
-                            as="select"
                             value={type}
-                            onChange={(e) => setType(e.target.value)}
+                            onValueChange={setType}
                         >
                             <option value="expense">Gasto (Egreso)</option>
                             <option value="income">Ingreso (Entrada)</option>
                             <option value="transfer">Transferencia</option>
-                        </InputField>
+                        </ChoiceSheet>
                     </div>
 
                     {/* Description */}
@@ -471,15 +471,14 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                     {/* Account */}
                     <div className="md:col-span-1">
                         {accounts.length > 0 ? (
-                            <InputField
+                            <ChoiceSheet
                                 label="Cuenta de Origen"
                                 name="accountId"
-                                as="select"
                             >
                                 {accounts.map((a: Account) => (
                                     <option key={a.id} value={a.id}>{a.name} ({formatCurrency(a.balance)})</option>
                                 ))}
-                            </InputField>
+                            </ChoiceSheet>
                         ) : (
                             <div className="p-4 bg-rose-50 dark:bg-rose-500/10 text-rose-600 text-sm rounded-2xl border border-rose-100 dark:border-rose-500/20">
                                 <Typography variant="small" className="font-black uppercase tracking-widest text-[10px] mb-2 block">Acción Crítica:</Typography>
@@ -499,28 +498,26 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                     {/* Target Account (Only for Transfers) */}
                     {type === 'transfer' && (
                         <div className="md:col-span-1 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <InputField
+                            <ChoiceSheet
                                 label="Cuenta Destino"
                                 name="targetAccountId"
-                                as="select"
                                 required
                             >
                                 <option value="">Selecciona cuenta destino</option>
                                 {accounts.map((a: Account) => (
                                     <option key={a.id} value={a.id}>{a.name} ({formatCurrency(a.balance)})</option>
                                 ))}
-                            </InputField>
+                            </ChoiceSheet>
                         </div>
                     )}
 
                     {/* Category */}
                     <div className="md:col-span-1">
-                        <InputField
+                        <ChoiceSheet
                             label="Categoría"
                             name="categoryId"
-                            as="select"
                             value={categoryId}
-                            onChange={(e) => setCategoryId(e.target.value)}
+                            onValueChange={setCategoryId}
                         >
                             <option value="">Selecciona categoría</option>
                             <optgroup label="Gastos Comunes">
@@ -529,7 +526,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                             <optgroup label="Fuentes de Ingreso">
                                 {incomeCategories.map((c: Category) => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </optgroup>
-                        </InputField>
+                        </ChoiceSheet>
                     </div>
 
 

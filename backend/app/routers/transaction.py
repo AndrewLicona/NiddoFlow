@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import datetime
+from uuid import UUID
+from pydantic import BaseModel, Field
+from app.models.transaction import TransactionItemCreate
 import io
 from app.dependencies import get_current_user
 from app.models.transaction import TransactionCreate, TransactionResponse, TransactionUpdate
@@ -24,6 +27,37 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 def get_transactions_service():
     repo = TransactionsRepository()
     return TransactionsService(repo)
+
+
+class ReceiptRecoveryRequest(BaseModel):
+    receipt_url: str = Field(min_length=1, max_length=2048)
+    items: list[TransactionItemCreate] = Field(min_length=1, max_length=200)
+
+
+@router.post("/{transaction_id}/recover-items")
+async def recover_receipt_items(
+    transaction_id: UUID,
+    payload: ReceiptRecoveryRequest,
+    user=Depends(get_current_user),
+    service: TransactionsService = Depends(get_transactions_service),
+):
+    from math import isfinite
+
+    if any(
+        not item.item_name.strip()
+        or not all(isfinite(value) for value in (item.quantity, item.unit_price, item.total_price))
+        or item.quantity <= 0
+        for item in payload.items
+    ):
+        raise HTTPException(status_code=422, detail="Revisa el nombre, las cantidades y los precios.")
+
+    result = await service.recover_receipt_items(
+        str(user.id), str(transaction_id), payload.receipt_url,
+        [item.model_dump() for item in payload.items],
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="No se encontró un recibo propio con ese adjunto.")
+    return {"saved": result}
 
 @router.post("/", response_model=TransactionResponse)
 async def create_transaction(

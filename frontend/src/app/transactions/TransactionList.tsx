@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { ReceiptRecovery } from './ReceiptRecovery';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Card } from '@/components/ui/molecules/Card';
@@ -57,6 +58,7 @@ interface Transaction {
     account_name?: string;
     user_name?: string;
     receipt_url?: string;
+    user_id?: string;
     target_account_id?: string;
     target_account_name?: string;
     merchant?: string | null;
@@ -66,12 +68,12 @@ interface Transaction {
     purchase_total_amount?: number | null;
 }
 
-const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds: string[] }> = ({ scope, month, accountIds }) => {
+const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds: string[]; userId: string; movementId?: string }> = ({ scope, month, accountIds, userId, movementId }) => {
     const { transactions, deleteTransaction: deleteTxMutation, updateTransaction: updateTxMutation, exportTransactions, isLoading: txLoading } = useTransactions({ scope });
     const { categories, isLoading: catLoading } = useCategories();
     const { accounts, isLoading: accLoading } = useAccounts();
 
-    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(movementId ?? null);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editData, setEditData] = useState<Partial<Transaction>>({});
@@ -216,6 +218,7 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
 
     const processedTransactions = React.useMemo(() => {
         let filtered = (transactions as Transaction[]).filter(t =>
+            (!movementId || t.id === movementId) &&
             (!month || String(t.date).slice(0, 7) === month) &&
             (!accountIds.length || accountIds.includes(t.account_id ?? ""))
         );
@@ -260,7 +263,7 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
         });
 
         return groups;
-    }, [transactions, filter, debtSubFilter, month, accountIds]);
+    }, [transactions, filter, debtSubFilter, month, accountIds, movementId]);
 
     if (txLoading || catLoading || accLoading) {
         return (
@@ -272,6 +275,11 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
 
     return (
         <div className="space-y-6 md:space-y-8">
+            <ReceiptRecovery categories={categories} receipts={(transactions as Transaction[]).flatMap(tx =>
+                tx.user_id === userId && tx.type === 'expense' && tx.receipt_url && !tx.items?.length
+                    ? [{ id: tx.id, description: tx.description, receipt_url: tx.receipt_url, amount: tx.amount }]
+                    : []
+            )} />
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
                 <div className="flex p-1 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] w-fit overflow-x-auto max-w-full no-scrollbar">
                     {(['all', 'income', 'expense', 'debts'] as const).map((f) => (

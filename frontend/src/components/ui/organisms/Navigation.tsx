@@ -5,7 +5,7 @@ import { useVisibleModules } from '@/hooks/useVisibleModules';
 import { usePathname } from 'next/navigation';
 import {
     Home, History, Target, Banknote, Settings, LogOut, Plus, Landmark,
-    ShoppingBasket, Flag, Receipt, MoreHorizontal,
+    ShoppingBasket, Flag, MoreHorizontal,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signout } from '@/app/login/actions';
@@ -23,11 +23,10 @@ const navItems = [
     { name: 'Límites', short: 'Límites', href: '/budgets', icon: Target },
     { name: 'Deudas', short: 'Deudas', href: '/debts', icon: Banknote },
     { name: 'Importar movimientos', short: 'Importar', href: '/import', icon: Landmark },
-    { name: 'Necesidades', short: 'Necesidades', href: '/shopping', icon: ShoppingBasket },
+    { name: 'Recursos', short: 'Recursos', href: '/resources', icon: ShoppingBasket },
     // Antes "Metas" reutilizaba el icono Target de "Límites" y "Cuentas del
     // hogar" el Home de "Inicio": dos pares de iconos identicos en el menu.
     { name: 'Metas', short: 'Metas', href: '/goals', icon: Flag },
-    { name: 'Cuentas del hogar', short: 'Hogar', href: '/bills', icon: Receipt },
     { name: 'Ajustes', short: 'Ajustes', href: '/settings', icon: Settings },
 ];
 
@@ -49,9 +48,8 @@ const mobileNavItems = [
  * Importar o el Historial.
  */
 const moreItems = [
-    { name: 'Necesidades', href: '/shopping', icon: ShoppingBasket },
+    { name: 'Recursos', href: '/resources', icon: ShoppingBasket },
     { name: 'Metas', href: '/goals', icon: Flag },
-    { name: 'Cuentas del hogar', href: '/bills', icon: Receipt },
     { name: 'Importar', href: '/import', icon: Landmark },
     { name: 'Historial', href: '/transactions', icon: History },
     { name: 'Ajustes', href: '/settings', icon: Settings },

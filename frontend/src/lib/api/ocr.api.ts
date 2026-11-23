@@ -62,10 +62,10 @@ export interface OcrExtractionResult {
  */
 export const ocrApi = {
     /** Extrae una factura. */
-    extract: async (file: File): Promise<OcrExtractionResult> => {
+    extract: async (file: File, recovery = false): Promise<OcrExtractionResult> => {
         const formData = new FormData();
         formData.append('file', file);
-        return fetchWithAuthFormData("/api/ocr/extract", formData);
+        return fetchWithAuthFormData(recovery ? "/api/ocr/extract?recovery=true" : "/api/ocr/extract", formData);
     },
 
     /** Extrae varias facturas en paralelo (el backend las limita a 3 a la vez). */

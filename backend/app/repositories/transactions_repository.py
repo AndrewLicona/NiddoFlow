@@ -3,6 +3,32 @@ from datetime import datetime
 from app.repositories.base import BaseRepository
 
 class TransactionsRepository(BaseRepository):
+    async def append_missing_receipt_items(self, user_id: str, tx_id: str, receipt_url: str, items: list):
+        async with self.prisma.tx() as db:
+            # Serializa la recuperación del mismo recibo sin cambiar sus datos.
+            owned = await db.query_raw(
+                "SELECT family_id FROM transactions WHERE id = $1::uuid AND user_id = $2::uuid "
+                "AND receipt_url = $3 AND type = 'expense' AND family_id = "
+                "(SELECT family_id FROM profiles WHERE id = $2::uuid) FOR UPDATE",
+                tx_id, user_id, receipt_url,
+            )
+            if not owned:
+                return None
+            if await db.transactionitem.count(where={"transaction_id": tx_id}):
+                return 0
+
+            category_ids = [item["category_id"] for item in items if item.get("category_id")]
+            if category_ids:
+                visible = await db.category.find_many(where={
+                    "id": {"in": category_ids},
+                    "OR": [{"is_default": True}, {"family_id": str(owned[0]["family_id"])}],
+                })
+                visible_ids = {str(category.id) for category in visible}
+                for item in items:
+                    if item.get("category_id") not in visible_ids:
+                        item.pop("category_id", None)
+            return await db.transactionitem.create_many(data=items)
+
     async def get_user_profile(self, user_id: str):
         profile = await self.prisma.profile.find_unique(where={"id": user_id})
         return type('obj', (object,), {'data': [profile.dict()] if profile else []})

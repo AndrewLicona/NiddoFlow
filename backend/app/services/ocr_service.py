@@ -699,11 +699,17 @@ async def _find_duplicate(
 # --------------------------------------------------------------------------- #
 # Orquestación
 # --------------------------------------------------------------------------- #
+class ReceiptQuotaExceeded(Exception):
+    pass
+
+
 async def extract_receipt_data(
     file_bytes: bytes,
     mime_type: str,
     categories: Optional[List[Union[str, Dict[str, Any]]]] = None,
     family_id: Optional[str] = None,
+    *,
+    stop_on_quota: bool = False,
 ) -> OCRExtractionResult:
     """
     Orchestrates OCR extraction with multi-provider resilience:
@@ -741,6 +747,10 @@ async def extract_receipt_data(
                 )
                 if gemini_result.amount is not None or gemini_result.description:
                     result = gemini_result
+            except ReceiptQuotaExceeded:
+                if stop_on_quota:
+                    raise
+                logger.warning("Cuota del OCR agotada; se usa Tesseract.")
             except Exception as e:
                 logger.warning(f"All Gemini attempts failed ({e}). Falling back to local Tesseract OCR...")
         else:
@@ -824,6 +834,7 @@ Reglas:
     #   - gemini-1.5-pro/flash  → DEPRECATED
     models_to_try = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
     num_keys = len(_gemini_clients)
+    quota_exhausted = False
     last_error = None
 
     # Rotate through all available keys if needed
@@ -862,6 +873,7 @@ Reglas:
                 last_error = e
                 # If quota / rate limit (429 / resource exhausted), try next key immediately
                 if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
+                    quota_exhausted = True
                     logger.info(f"Key [{masked_key}] hit quota limit. Switching to next key in pool...")
                     break  # Break out of model loop to try next key in outer loop
                 # If 503 (high demand), try once more with the same model after a short wait
@@ -889,12 +901,18 @@ Reglas:
                         result.image_hash = prepared.image_hash
                         return result
                     except Exception as retry_err:
+                        retry_text = str(retry_err).lower()
+                        if any(marker in retry_text for marker in ("429", "quota", "resource_exhausted")):
+                            quota_exhausted = True
+                            break
                         logger.warning(f"Retry also failed: {retry_err}")
                         continue  # Try next model
                 # If model not found (404), continue to next model with the same key
                 elif "404" in err_str or "not found" in err_str:
                     continue
 
+    if quota_exhausted:
+        raise ReceiptQuotaExceeded()
     raise Exception(f"All Gemini keys/models exhausted. Last error: {last_error}")
 
 

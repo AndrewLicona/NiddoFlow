@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "./client";
 
 export interface RecurringBill {
+    created_by?: string | null;
     id: string;
     family_id: string;
     name: string;

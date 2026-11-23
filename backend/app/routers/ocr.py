@@ -12,8 +12,9 @@ import zipfile
 import io
 import os
 import asyncio
+from time import monotonic
 from app.dependencies import get_current_user
-from app.services.ocr_service import extract_receipt_data, OCRExtractionResult
+from app.services.ocr_service import extract_receipt_data, OCRExtractionResult, ReceiptQuotaExceeded
 from app.services.categories_service import CategoriesService
 from app.repositories.categories_repository import CategoriesRepository
 import logging
@@ -31,6 +32,25 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
 MAX_FILE_BYTES = 10 * 1024 * 1024
 # Máximo de archivos en paralelo dentro del bulk (protege el rate limit de Gemini)
 BULK_CONCURRENCY = 3
+RECOVERY_COOLDOWN_SECONDS = 900
+_recovery_lock = asyncio.Lock()
+_recovery_paused_until = 0.0
+
+
+async def _extract_for_recovery(content, content_type, categories, family_id):
+    global _recovery_paused_until
+    if _recovery_lock.locked():
+        raise HTTPException(status_code=409, detail="OCR_RECOVERY_BUSY")
+    async with _recovery_lock:
+        if monotonic() < _recovery_paused_until:
+            raise ReceiptQuotaExceeded()
+        try:
+            return await extract_receipt_data(
+                content, content_type, categories=categories, family_id=family_id, stop_on_quota=True
+            )
+        except ReceiptQuotaExceeded:
+            _recovery_paused_until = monotonic() + RECOVERY_COOLDOWN_SECONDS
+            raise
 
 
 def get_categories_service() -> CategoriesService:
@@ -89,6 +109,7 @@ async def extract_receipt(
     file: UploadFile = File(...),
     user=Depends(get_current_user),
     categories_service: CategoriesService = Depends(get_categories_service),
+    recovery: bool = False,
 ):
     """Extrae los datos de un recibo/factura (imagen o PDF)."""
     content_type = file.content_type or ""
@@ -98,7 +119,7 @@ async def extract_receipt(
             detail="Solo se admiten archivos de imagen o PDF",
         )
     try:
-        content = await file.read()
+        content = await file.read(MAX_FILE_BYTES + 1)
         # Reject oversized uploads early to avoid burning Gemini tokens/time
         # on giant phone photos. 10 MB covers any sane receipt at 4K resolution.
         if len(content) > MAX_FILE_BYTES:
@@ -107,10 +128,17 @@ async def extract_receipt(
             )
 
         family_id, categories = await _get_family_context(user.id, categories_service)
+        if recovery:
+            return await _extract_for_recovery(content, content_type, categories, family_id)
         result = await extract_receipt_data(
             content, content_type, categories=categories, family_id=family_id
         )
         return result
+    except ReceiptQuotaExceeded:
+        raise HTTPException(
+            status_code=429, detail="OCR_RECOVERY_QUOTA",
+            headers={"Retry-After": str(max(1, int(_recovery_paused_until - monotonic()) + 1))},
+        )
     except HTTPException:
         raise
     except Exception as e:

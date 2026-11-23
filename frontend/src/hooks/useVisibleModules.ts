@@ -3,9 +3,8 @@
 import { useSyncExternalStore } from "react";
 
 export const optionalModules = [
-    { href: "/shopping", label: "Necesidades" },
+    { href: "/resources", label: "Recursos" },
     { href: "/goals", label: "Metas" },
-    { href: "/bills", label: "Cuentas del hogar" },
 ] as const;
 
 const key = "niddoflow-hidden-modules";

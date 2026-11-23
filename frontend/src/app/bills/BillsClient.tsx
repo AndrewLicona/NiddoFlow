@@ -28,8 +28,16 @@ const CADENCE_LABELS: Record<string, string> = {
     yearly: "Anual",
 };
 
-export default function BillsClient() {
-    const { bills, totalMonthly, dueNext7Days, overdue, isLoading, createBill, deleteBill } = useRecurringBills();
+export default function BillsClient({ creatorId }: { creatorId?: string }) {
+    const summary = useRecurringBills();
+    const { isLoading, createBill, deleteBill } = summary;
+    const belongs = (bill: { created_by?: string | null }) => !creatorId || bill.created_by === creatorId;
+    const bills = summary.bills.filter(belongs);
+    const dueNext7Days = summary.dueNext7Days.filter(belongs);
+    const overdue = summary.overdue.filter(belongs);
+    const totalMonthly = creatorId
+        ? bills.filter(bill => bill.is_active).reduce((total, bill) => total + bill.monthly_equivalent, 0)
+        : summary.totalMonthly;
     const { categories } = useCategories();
     const [showForm, setShowForm] = useState(false);
 

@@ -36,8 +36,8 @@ const PRIORITY_STYLES: Record<ShoppingPriority, string> = {
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-export default function ShoppingClient() {
-    const { items, isLoading, error, createItem, deleteItem, purchaseItem } = useShopping();
+export default function ShoppingClient({ scope = "family" }: { scope?: "family" | "personal" }) {
+    const { items, isLoading, error, createItem, deleteItem, purchaseItem } = useShopping(scope);
     const { categories } = useCategories();
     const { accounts } = useAccounts();
 

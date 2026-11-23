@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 
 export default async function TransactionsPage({ searchParams }: {
-    searchParams: Promise<{ scope?: string; month?: string; account?: string | string[] }>;
+    searchParams: Promise<{ scope?: string; month?: string; account?: string | string[]; movement?: string }>;
 }) {
     const supabase = await createClient();
     const {
@@ -17,6 +17,7 @@ export default async function TransactionsPage({ searchParams }: {
     if (!user) redirect("/login");
     const filters = await searchParams;
     const scope = filters.scope === "personal" ? "personal" : undefined;
+    const movementId = typeof filters.movement === "string" ? filters.movement : undefined;
     const month = typeof filters.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(filters.month) ? filters.month : undefined;
     const accounts = Array.isArray(filters.account) ? filters.account : filters.account ? [filters.account] : [];
 
@@ -44,13 +45,13 @@ export default async function TransactionsPage({ searchParams }: {
                 }
             />
 
-            {(scope || month || accounts.length > 0) && (
+            {(scope || month || movementId || accounts.length > 0) && (
                 <p className="mb-4 text-sm text-muted-foreground">
                     Historial filtrado{month ? ` · ${month}` : ""} ·{" "}
                     <Link href="/transactions" className="font-semibold text-primary underline">Ver todos los movimientos</Link>
                 </p>
             )}
-            <TransactionList scope={scope} month={month} accountIds={accounts} />
+            <TransactionList key={movementId} scope={scope} month={month} accountIds={accounts} userId={user.id} movementId={movementId} />
         </main>
     );
 }
