@@ -3,7 +3,6 @@
 
 import React, { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { ReceiptRecovery } from './ReceiptRecovery';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Card } from '@/components/ui/molecules/Card';
@@ -274,11 +273,6 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
 
     return (
         <div className="space-y-6 md:space-y-8">
-            <ReceiptRecovery categories={categories} receipts={(transactions as Transaction[]).flatMap(tx =>
-                tx.type === 'expense' && tx.receipt_url && !tx.items?.length
-                    ? [{ id: tx.id, description: tx.description, receipt_url: tx.receipt_url, amount: tx.amount }]
-                    : []
-            )} />
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2">
                 <div className="flex p-1 bg-foreground/[0.03] rounded-2xl border border-foreground/[0.05] w-fit overflow-x-auto max-w-full no-scrollbar">
                     {(['all', 'income', 'expense', 'debts'] as const).map((f) => (
