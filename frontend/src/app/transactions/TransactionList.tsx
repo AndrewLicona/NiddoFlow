@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { ReadReceipt } from './ReadReceipt';
 import { formatCurrency } from '@/utils/format';
 import { Typography } from '@/components/ui/atoms/Typography';
 import { Card } from '@/components/ui/molecules/Card';
@@ -563,6 +564,9 @@ const TransactionList: React.FC<{ scope?: "personal"; month?: string; accountIds
                                                                         </div>
                                                                     )}
                                                                 </div>
+                                                                {t.type === 'expense' && t.receipt_url && !t.items?.length && (
+                                                                    <ReadReceipt key={t.receipt_url} transactionId={t.id} receiptUrl={t.receipt_url} categories={categories} />
+                                                                )}
                                                                 {t.items && t.items.length > 0 && (
                                                                     <TransactionItemsPanel
                                                                         items={t.items}
