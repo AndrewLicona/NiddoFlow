@@ -76,6 +76,8 @@ async def _run_extractions(
     categories: List[Dict[str, Any]],
     family_id: Optional[str],
     concurrency: int = BULK_CONCURRENCY,
+    *,
+    source_indexes: Optional[List[Optional[int]]] = None,
 ) -> List[OCRExtractionResult]:
     """Procesa los archivos en paralelo (O8) con un semáforo de `concurrency`.
 
@@ -101,6 +103,11 @@ async def _run_extractions(
                 return None
 
     outcomes = await asyncio.gather(*[_process_one(task) for task in tasks])
+    if source_indexes is not None:
+        outcomes = [
+            result.model_copy(update={"source_file_index": index}) if result is not None else None
+            for result, index in zip(outcomes, source_indexes)
+        ]
     return [outcome for outcome in outcomes if outcome is not None]
 
 
@@ -167,7 +174,8 @@ async def extract_bulk(
 
     tasks: List[Tuple[bytes, str, Optional[str], bool]] = []
 
-    for file in files:
+    source_indexes = []
+    for index, file in enumerate(files):
         filename = file.filename or ""
         if filename.lower().endswith(".zip"):
             content = await file.read()
@@ -186,6 +194,7 @@ async def extract_bulk(
                             file_bytes = f.read()
                         mime_type = "application/pdf" if ext == ".pdf" else "image/jpeg"
                         tasks.append((file_bytes, mime_type, zinfo.filename, True))
+                        source_indexes.append(None)
             except zipfile.BadZipFile:
                 logger.error(f"El archivo {filename} no es un ZIP válido")
             except Exception as e:
@@ -201,5 +210,6 @@ async def extract_bulk(
                 logger.warning(f"El archivo {filename} supera el tamaño máximo y se omite")
                 continue
             tasks.append((content, content_type, filename or None, False))
+            source_indexes.append(index)
 
-    return await _run_extractions(tasks, categories, family_id)
+    return await _run_extractions(tasks, categories, family_id, source_indexes=source_indexes)

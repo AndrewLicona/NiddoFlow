@@ -219,6 +219,7 @@ class OCRItemResult(BaseModel):
 
 
 class OCRExtractionResult(BaseModel):
+    source_file_index: Optional[int] = None
     amount: Optional[float] = Field(description="Total amount of the receipt or invoice", default=None)
     date: Optional[str] = Field(description="Date of the receipt in YYYY-MM-DDTHH:MM format", default=None)
     description: Optional[str] = Field(description="A brief description or title for the expense", default=None)

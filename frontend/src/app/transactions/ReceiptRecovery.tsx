@@ -122,14 +122,15 @@ export function ReceiptRecovery({ receipts, categories }: { receipts: Receipt[];
 
     if (!receipts.length && !drafts.length && !message) return null;
     return (
-        <details className="rounded-2xl border border-foreground/10 bg-card p-4">
-            <summary className="cursor-pointer font-bold">Recuperar productos de facturas anteriores</summary>
+        <section className="rounded-2xl border border-foreground/10 bg-card p-4" aria-labelledby="recover-receipts">
+            <h2 id="recover-receipts" className="font-bold">Recuperar productos de facturas anteriores</h2>
             <p className="my-3 text-sm text-muted-foreground">Lee hasta 3 adjuntos por lote. Revisa los productos antes de guardarlos.</p>
             <button type="button" onClick={scan} disabled={running || !!saving || !pending.length || !!drafts.length}
                 className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50">
                 {running ? 'Leyendo facturas…' : `Procesar hasta 3 · ${pending.length} pendientes`}
             </button>
             {message && <p role="status" className="mt-3 text-sm">{message}</p>}
+            {drafts.length > 0 && !running && <p className="mt-2 text-sm text-muted-foreground">Guarda u omite los productos de este lote antes de continuar.</p>}
             {issues.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 {issues.map((issue, index) => <li key={index}>{issue}</li>)}
             </ul>}
@@ -149,6 +150,6 @@ export function ReceiptRecovery({ receipts, categories }: { receipts: Receipt[];
                     </div>
                 </div>
             ))}
-        </details>
+        </section>
     );
 }

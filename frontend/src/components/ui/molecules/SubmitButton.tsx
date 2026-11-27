@@ -12,6 +12,7 @@ interface SubmitButtonProps {
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline';
     size?: 'sm' | 'md' | 'lg';
     icon?: React.ReactNode;
+    disabled?: boolean;
 }
 
 export const SubmitButton = ({
@@ -20,7 +21,8 @@ export const SubmitButton = ({
     className = '',
     variant = 'primary',
     size = 'md',
-    icon
+    icon,
+    disabled = false
 }: SubmitButtonProps) => {
     const { pending } = useFormStatus();
 
@@ -29,7 +31,7 @@ export const SubmitButton = ({
             type="submit"
             variant={variant}
             size={size}
-            disabled={pending}
+            disabled={pending || disabled}
             className={className}
         >
             {pending ? (

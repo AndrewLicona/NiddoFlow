@@ -34,6 +34,7 @@ export type OcrConfidence = {
  * los campos dudosos llegan como `null`, nunca como cadena vacía.
  */
 export interface OcrExtractionResult {
+    source_file_index?: number | null;
     amount: number | null;
     date: string | null;
     description: string | null;

@@ -23,6 +23,8 @@ import { selectStyles } from '@/components/ui/molecules/SelectField';
 import { formatCurrency } from '@/utils/format';
 import { normalizeQuantity, roundMoney } from '@/utils/numbers';
 import { useOcrExtractBulk } from '@/hooks/useOcr';
+import type { OcrExtractionResult, OcrInstallments } from '@/lib/api/ocr.api';
+import { createClient } from '@/utils/supabase/client';
 
 interface Category {
     id: string;
@@ -36,13 +38,9 @@ interface Account {
     balance: number;
 }
 
-interface OcrInstallments {
-    current: number;
-    total: number;
-    purchase_total_amount: number;
-}
-
 interface OCRResult {
+    receiptFile: File;
+    receiptUrl?: string;
     id_temp: string;
     amount: number | null;
     date: string | null;
@@ -63,6 +61,45 @@ interface OCRResult {
 interface Props {
     categories: Category[];
     accounts: Account[];
+}
+
+const MAX_RECEIPT_BYTES = 9 * 1024 * 1024;
+const receiptTypes: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    webp: 'image/webp', pdf: 'application/pdf',
+};
+
+async function expandReceipts(files: File[]) {
+    const receipts: File[] = [];
+    let totalBytes = 0;
+    for (const file of files) {
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            if (file.size > MAX_RECEIPT_BYTES) throw new Error('Cada recibo puede pesar hasta 9 MB.');
+            totalBytes += file.size;
+            if (totalBytes > 40 * 1024 * 1024) throw new Error('Divide el lote en grupos de hasta 40 MB.');
+            receipts.push(file);
+            continue;
+        }
+        if (file.size > 40 * 1024 * 1024) throw new Error('El ZIP puede pesar hasta 40 MB.');
+        const { unzipSync } = await import('fflate');
+        const contents = unzipSync(new Uint8Array(await file.arrayBuffer()), {
+            filter: entry => {
+                const type = receiptTypes[entry.name.split('.').pop()?.toLowerCase() ?? ''];
+                if (!type || entry.name.endsWith('/')) return false;
+                totalBytes += entry.originalSize;
+                if (entry.originalSize > MAX_RECEIPT_BYTES || totalBytes > 40 * 1024 * 1024) {
+                    throw new Error('El ZIP supera 9 MB por recibo o 40 MB en total.');
+                }
+                return true;
+            },
+        });
+        for (const [name, data] of Object.entries(contents)) {
+            const type = receiptTypes[name.split('.').pop()?.toLowerCase() ?? ''];
+            receipts.push(new File([new Uint8Array(data)], name.split('/').pop() ?? 'recibo', { type }));
+        }
+    }
+    if (!receipts.length || receipts.length > 20) throw new Error('Selecciona entre 1 y 20 recibos compatibles por lote.');
+    return receipts;
 }
 
 export default function BulkTransactionClient({ categories: initialCategories, accounts: initialAccounts }: Props) {
@@ -86,25 +123,49 @@ export default function BulkTransactionClient({ categories: initialCategories, a
 
         setIsProcessing(true);
         try {
-            const data = await extractBulk.mutateAsync(Array.from(files));
+            const receipts = await expandReceipts(Array.from(files));
+            const data: OcrExtractionResult[] = [];
+            for (let offset = 0; offset < receipts.length;) {
+                const batch: File[] = [];
+                let bytes = 0;
+                while (offset + batch.length < receipts.length && batch.length < 3) {
+                    const file = receipts[offset + batch.length];
+                    if (bytes + file.size > MAX_RECEIPT_BYTES) break;
+                    batch.push(file);
+                    bytes += file.size;
+                }
+                const extracted = await extractBulk.mutateAsync(batch);
+                for (const row of extracted) {
+                    const index = row.source_file_index;
+                    if (index == null || index < 0 || index >= batch.length) {
+                        throw new Error('No se pudo asociar el resultado con su archivo original.');
+                    }
+                    data.push({ ...row, source_file_index: offset + index });
+                }
+                offset += batch.length;
+            }
             
             // Map results and try to match categories
-            const mappedResults: OCRResult[] = data.map((res: any, index: number) => {
+            const mappedResults: OCRResult[] = data.map((res, index) => {
+                const receiptFile = res.source_file_index == null ? undefined : receipts[res.source_file_index];
+                if (!receiptFile) throw new Error('No se pudo asociar el resultado con su archivo original.');
                 const nature = res.nature || 'Gasto';
                 const type = nature === 'Ingreso' ? 'income' : 'expense';
                 
                 // Match category
                 let matchedId = '';
-                if (res.category) {
+                const detectedCategory = res.category?.toLowerCase();
+                if (detectedCategory) {
                     const found = categories.find(c => 
                         c.type === type && 
-                        (c.name.toLowerCase().includes(res.category.toLowerCase()) || 
-                         res.category.toLowerCase().includes(c.name.toLowerCase()))
+                        (c.name.toLowerCase().includes(detectedCategory) ||
+                         detectedCategory.includes(c.name.toLowerCase()))
                     );
                     if (found) matchedId = found.id;
                 }
 
                 return {
+                    receiptFile,
                     id_temp: `temp_${Date.now()}_${index}`,
                     amount: res.amount,
                     date: res.date ? res.date.slice(0, 16) : new Date().toISOString().slice(0, 16),
@@ -135,9 +196,12 @@ export default function BulkTransactionClient({ categories: initialCategories, a
             });
 
             setResults(prev => [...prev, ...mappedResults]);
+            if (mappedResults.length < receipts.length) {
+                alert(`Se leyeron ${mappedResults.length} de ${receipts.length} recibos. Los demás no se guardaron.`);
+            }
         } catch (error) {
             console.error('Error in bulk processing:', error);
-            alert('Error al procesar los archivos. Inténtalo de nuevo.');
+            alert(error instanceof Error ? error.message : 'Error al procesar los archivos.');
         } finally {
             setIsProcessing(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -200,14 +264,28 @@ export default function BulkTransactionClient({ categories: initialCategories, a
 
         setIsSaving(true);
         try {
-            const payload = results.map(r => ({
+            const storage = createClient().storage.from('receipts');
+            const ready = [];
+            for (const row of results) {
+                if (row.receiptUrl) {
+                    ready.push(row);
+                    continue;
+                }
+                const extension = row.receiptFile.name.match(/\.[a-z0-9]{1,8}$/i)?.[0] ?? '';
+                const { data, error } = await storage.upload(crypto.randomUUID() + extension, row.receiptFile);
+                if (error) throw new Error('No se pudo guardar el soporte de «' + (row.description || row.receiptFile.name) + '».');
+                const receiptUrl = storage.getPublicUrl(data.path).data.publicUrl;
+                ready.push({ ...row, receiptUrl });
+                setResults(previous => previous.map(result => result.id_temp === row.id_temp ? { ...result, receiptUrl } : result));
+            }
+            const payload = ready.map(r => ({
                 description: r.description || 'Transacción Masiva',
                 amount: r.amount || 0,
                 type: r.nature === 'Ingreso' ? 'income' : (r.nature === 'Transferencia' ? 'transfer' : 'expense'),
                 category_id: r.category_id || null,
                 account_id: r.account_id,
                 date: r.date,
-                receipt_url: null,
+                receipt_url: r.receiptUrl,
                 // Datos del OCR: comercio, productos, cuotas y huella de la imagen.
                 merchant: r.merchant || null,
                 source: 'ocr' as const,
@@ -229,7 +307,7 @@ export default function BulkTransactionClient({ categories: initialCategories, a
             setResults([]);
         } catch (error) {
             console.error('Error saving bulk transactions:', error);
-            alert('Error al guardar las transacciones.');
+            alert(error instanceof Error ? error.message : 'Error al guardar las transacciones.');
         } finally {
             setIsSaving(false);
         }
@@ -325,7 +403,7 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                         <Button 
                             variant="primary" 
                             onClick={handleSaveAll}
-                            disabled={isSaving}
+                            disabled={isSaving || isProcessing}
                             className="w-full md:w-auto bg-green-600 hover:bg-green-700 shadow-lg shadow-green-500/10"
                         >
                             {isSaving ? <Loader2 className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
@@ -455,7 +533,7 @@ export default function BulkTransactionClient({ categories: initialCategories, a
                                                     Cuota {res.installments.current} de {res.installments.total}
                                                 </Typography>
                                                 <Typography variant="body" className="font-black text-amber-800 dark:text-amber-200">
-                                                    Total de la compra: {formatCurrency(res.installments.purchase_total_amount)}
+                                                    Total de la compra: {res.installments.purchase_total_amount == null ? 'Sin dato' : formatCurrency(res.installments.purchase_total_amount)}
                                                 </Typography>
                                             </div>
                                         )}

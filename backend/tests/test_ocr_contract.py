@@ -270,11 +270,13 @@ class TestBulkParalelo:
                 (b"bad", "image/jpeg", "bad", False),
                 (b"ok2", "image/jpeg", "ok2", False),
             ]
-            results = asyncio.run(ocr_router._run_extractions(tasks, CATEGORIES, None))
+            results = asyncio.run(
+                ocr_router._run_extractions(tasks, CATEGORIES, None, source_indexes=[0, 1, 2])
+            )
         finally:
             ocr_router.extract_receipt_data = original
 
-        assert len(results) == 2
+        assert [result.source_file_index for result in results] == [0, 2]
 
 
 class TestAutenticacion:

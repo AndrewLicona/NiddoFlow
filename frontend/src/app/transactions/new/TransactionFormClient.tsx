@@ -103,6 +103,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
             return;
         }
         const file = e.target.files[0];
+        setReceiptUrl(null);
         setReceiptFile(file);
         setFilePreview(URL.createObjectURL(file));
 
@@ -552,6 +553,7 @@ export default function TransactionFormClient({ categories, accounts }: Props) {
                         </Button>
                     </Link>
                     <SubmitButton
+                        disabled={uploading || isScanning}
                         variant="primary"
                         className="order-1 md:order-2 w-full md:w-auto px-10 shadow-xl shadow-blue-500/10"
                         icon={<Save size={18} />}
